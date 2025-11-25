@@ -1,7 +1,6 @@
 from sqlmodel import create_engine, SQLModel
 from sqlalchemy.ext.asyncio import AsyncEngine
 from .config import settings
-from app.models.book import Book
 
 engine = AsyncEngine(
     create_engine(

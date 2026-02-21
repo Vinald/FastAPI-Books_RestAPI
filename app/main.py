@@ -2,9 +2,6 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from app.api.v1.routes import book
 from app.core.database import engine, Base
-# Import models to register them with Base.metadata
-from app.models.book import Book
-from app.models.user import User
 
 
 @asynccontextmanager
@@ -17,7 +14,7 @@ async def lifespan(app: FastAPI):
     print("Shutting down the application...")
 
 
-version = "v 1.0"
+version = "v1.0"
 description = f"API version {version} - A simple book management API built with FastAPI and SQLAlchemy"
 
 

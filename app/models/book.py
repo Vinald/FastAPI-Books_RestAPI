@@ -1,6 +1,6 @@
 from datetime import datetime
-import uuid
-from sqlalchemy import Column, String, Integer, Date, DateTime
+import uuid as uuid_lib
+from sqlalchemy import Column, String, Integer, Date, DateTime, Index
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
 
@@ -8,7 +8,8 @@ from app.core.database import Base
 class Book(Base):
     __tablename__ = "books"
 
-    uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(UUID(as_uuid=True), unique=True, nullable=False, default=uuid_lib.uuid4, index=True)
     title = Column(String(255), nullable=False)
     author = Column(String(255), nullable=False)
     publisher = Column(String(255), nullable=False)
@@ -19,4 +20,4 @@ class Book(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self) -> str:
-        return f"Book(uuid={self.uuid}, title={self.title}, author={self.author})"
+        return f"Book(id={self.id}, uuid={self.uuid}, title={self.title})"

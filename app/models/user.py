@@ -1,6 +1,6 @@
 from datetime import datetime
-import uuid
-from sqlalchemy import Column, String, Boolean, DateTime
+import uuid as uuid_lib
+from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
 
@@ -8,7 +8,8 @@ from app.core.database import Base
 class User(Base):
     __tablename__ = "users"
 
-    uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    uuid = Column(UUID(as_uuid=True), unique=True, nullable=False, default=uuid_lib.uuid4, index=True)
     username = Column(String(255), nullable=False, unique=True)
     email = Column(String(255), nullable=False, unique=True)
     first_name = Column(String(255), nullable=False)
@@ -18,4 +19,4 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self) -> str:
-        return f"User(uuid={self.uuid}, username={self.username}, email={self.email})"
+        return f"User(id={self.id}, uuid={self.uuid}, username={self.username})"

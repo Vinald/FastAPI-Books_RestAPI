@@ -5,6 +5,7 @@ import uuid
 
 
 class BookBase(BaseModel):
+    id: int
     uuid: uuid.UUID
     title: str
     author: str

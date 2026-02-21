@@ -49,9 +49,7 @@ class BookService:
         await session.refresh(new_book)
         return new_book
 
-    async def update_book(
-        self, book_uuid: uuid.UUID, update_data: BookUpdate, session: AsyncSession
-    ):
+    async def update_book(self, book_uuid: uuid.UUID, update_data: BookUpdate, session: AsyncSession):
         book_to_update = await self.get_book(book_uuid, session)
 
         if not book_to_update:

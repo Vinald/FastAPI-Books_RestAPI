@@ -1,7 +1,9 @@
-from datetime import datetime
 import uuid as uuid_lib
+from datetime import datetime
+
 from sqlalchemy import Column, String, Boolean, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID
+
 from app.core.database import Base
 
 
@@ -15,6 +17,7 @@ class User(Base):
     first_name = Column(String(255), nullable=False)
     last_name = Column(String(255), nullable=False)
     is_active = Column(Boolean, nullable=False, default=False)
+    password = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 

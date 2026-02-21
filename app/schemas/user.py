@@ -1,7 +1,8 @@
-from pydantic import BaseModel
-from datetime import datetime, date
-from typing import Optional
 import uuid
+from datetime import datetime
+from typing import Optional
+
+from pydantic import BaseModel
 
 
 class UserBase(BaseModel):
@@ -31,5 +32,9 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = False
 
 
-class UserOut(UserBase):
+class ShowUser(UserBase):
     model_config = {"from_attributes": True}
+
+
+class ShowUserWithBooks:
+    pass

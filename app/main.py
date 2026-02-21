@@ -1,8 +1,21 @@
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from app.api.v1.routes import book
 from app.core.database import engine, Base
+# Import models to register them with Base.metadata
+from app.models.book import Book
+from app.models.user import User
 
-Base.metadata.create_all(bind=engine)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Create tables on startup
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    print("Starting up the application...")
+    yield
+    print("Shutting down the application...")
+
 
 version = "v 1.0"
 description = f"API version {version} - A simple book management API built with FastAPI and SQLAlchemy"
@@ -12,6 +25,7 @@ app = FastAPI(
     title="Book Management API",
     description=description,
     version=version,
+    lifespan=lifespan,
     terms_of_service="http://vinald.me",
     contact={
         "name": "Vinald",

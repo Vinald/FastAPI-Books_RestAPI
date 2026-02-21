@@ -17,7 +17,7 @@ class BookService:
 
     @staticmethod
     async def get_book(book_uuid: uuid.UUID, session: AsyncSession):
-        statement = select(Book).where(Book.uid == str(book_uuid))
+        statement = select(Book).where(Book.uuid == book_uuid)
         result = await session.execute(statement)
         book = result.scalars().first()
         return book if book else None

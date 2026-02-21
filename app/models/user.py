@@ -1,14 +1,14 @@
 from datetime import datetime
 import uuid
 from sqlalchemy import Column, String, Boolean, DateTime
-from sqlalchemy.dialects.mysql import CHAR
+from sqlalchemy.dialects.postgresql import UUID
 from app.core.database import Base
 
 
 class User(Base):
     __tablename__ = "users"
 
-    id = Column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    uuid = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     username = Column(String(255), nullable=False, unique=True)
     email = Column(String(255), nullable=False, unique=True)
     first_name = Column(String(255), nullable=False)
@@ -18,4 +18,4 @@ class User(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self) -> str:
-        return f"User(id={self.id}, username={self.username}, email={self.email})"
+        return f"User(uuid={self.uuid}, username={self.username}, email={self.email})"

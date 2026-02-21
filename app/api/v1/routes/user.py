@@ -1,8 +1,17 @@
-from fastapi import APIRouter, status
+import uuid
+from typing import List
 
-from app.schemas.user import ShowUser, ShowUserWithBooks
+from fastapi import APIRouter, Depends, status, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
 
-user_route = APIRouter(
+from app.core.database import get_session
+from app.core.security import get_current_active_user
+from app.models.user import User
+from app.schemas.auth import MessageResponse
+from app.schemas.user import ShowUser, UserWithBooks, UserUpdate, PasswordChange
+from app.services.user_services import UserService
+
+user_router = APIRouter(
     prefix="/users",
     tags=["Users"],
     responses={
@@ -11,96 +20,138 @@ user_route = APIRouter(
     }
 )
 
+user_service = UserService()
 
-# get current authenticated user
-@user_route.get(
+
+@user_router.get(
     "/me",
-    response_model=ShowUserWithBooks,
+    response_model=UserWithBooks,
     status_code=status.HTTP_200_OK,
     summary="Get current user",
-    description="Get the currently authenticated user's profile."
+    description="Get the currently authenticated user's profile with their books."
 )
-async def get_me():
-    pass
+async def get_me(
+        current_user: User = Depends(get_current_active_user),
+        session: AsyncSession = Depends(get_session)
+) -> UserWithBooks:
+    """Get current authenticated user."""
+    # Fetch user with books relationship loaded
+    user = await user_service.get_user_by_uuid(current_user.uuid, session)
+    return user
 
 
-# create a user
-@user_route.post(
+@user_router.get(
     "/",
-    response_model=ShowUser,
-    status_code=status.HTTP_201_CREATED,
-    summary="Create a new user",
-    description="Create a new user with name, email, and password. The password will be hashed before storing.",
-    response_description="The created user"
-)
-async def create_user():
-    pass
-
-
-# get all users
-@user_route.get(
-    "/",
-    response_model=list[ShowUser],
+    response_model=List[ShowUser],
     status_code=status.HTTP_200_OK,
     summary="Get all users",
     description="Retrieve a list of all registered users."
 )
-async def read_all_users():
-    pass
+async def get_all_users(
+        session: AsyncSession = Depends(get_session)
+) -> List[ShowUser]:
+    """Get all users."""
+    users = await user_service.get_all_users(session)
+    return users
 
 
-# get a user by id (with blogs)
-@user_route.get(
+@user_router.get(
     "/{user_uuid}",
-    response_model=ShowUserWithBooks,
+    response_model=UserWithBooks,
     status_code=status.HTTP_200_OK,
-    summary="Get user by ID",
-    description="Retrieve a specific user by their ID, including their blogs."
+    summary="Get user by UUID",
+    description="Retrieve a specific user by their UUID, including their books."
 )
-async def read_user_by_uuid():
-    pass
+async def get_user_by_uuid(
+        user_uuid: uuid.UUID,
+        session: AsyncSession = Depends(get_session)
+) -> UserWithBooks:
+    """Get a user by UUID."""
+    user = await user_service.get_user_by_uuid(user_uuid, session)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_uuid} not found"
+        )
+    return user
 
 
-# get user by email
-@user_route.get(
+@user_router.get(
     "/email/{email}",
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Get user by email",
     description="Retrieve a specific user by their email address."
 )
-async def read_user_by_email():
-    pass
+async def get_user_by_email(
+        email: str,
+        session: AsyncSession = Depends(get_session)
+) -> ShowUser:
+    """Get a user by email."""
+    user = await user_service.get_user_by_email(email, session)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User with email {email} not found"
+        )
+    return user
 
 
-# update a user
-@user_route.put(
-    "/{user_id}",
+@user_router.patch(
+    "/{user_uuid}",
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Update a user",
     description="Update an existing user's information (requires authentication, can only update own profile)."
 )
-async def update_user():
-    pass
+async def update_user(
+        user_uuid: uuid.UUID,
+        update_data: UserUpdate,
+        session: AsyncSession = Depends(get_session),
+        current_user: User = Depends(get_current_active_user)
+) -> ShowUser:
+    """Update a user."""
+    updated_user = await user_service.update_user(
+        user_uuid, update_data, session, current_user
+    )
+    return updated_user
 
 
-# delete a user
-@user_route.delete(
-    "/{user_id}",
+@user_router.delete(
+    "/{user_uuid}",
+    response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete a user",
-    description="Delete a user from the database (requires authentication, can only delete own account).",
-    responses={
-        200: {
-            "description": "User deleted successfully",
-            "content": {
-                "application/json": {
-                    "example": {"message": "User deleted successfully"}
-                }
-            }
-        }
-    }
+    description="Delete a user from the database (requires authentication, can only delete own account)."
 )
-async def delete_user():
-    pass
+async def delete_user(
+        user_uuid: uuid.UUID,
+        session: AsyncSession = Depends(get_session),
+        current_user: User = Depends(get_current_active_user)
+) -> MessageResponse:
+    """Delete a user."""
+    result = await user_service.delete_user(user_uuid, session, current_user)
+    return MessageResponse(**result)
+
+
+@user_router.post(
+    "/change-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change password",
+    description="Change the current user's password."
+)
+async def change_password(
+        password_data: PasswordChange,
+        session: AsyncSession = Depends(get_session),
+        current_user: User = Depends(get_current_active_user)
+) -> MessageResponse:
+    """Change current user's password."""
+    result = await user_service.change_password(
+        user_uuid=current_user.uuid,
+        current_password=password_data.current_password,
+        new_password=password_data.new_password,
+        session=session,
+        current_user=current_user
+    )
+    return MessageResponse(**result)

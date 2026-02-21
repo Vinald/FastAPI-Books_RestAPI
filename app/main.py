@@ -1,6 +1,8 @@
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from app.api.v1.routes import book
+
+from fastapi import FastAPI
+
+from app.api.v1.routes import book, auth, user
 from app.core.database import engine, Base
 
 
@@ -16,7 +18,6 @@ async def lifespan(app: FastAPI):
 
 version = "v1.0"
 description = f"API version {version} - A simple book management API built with FastAPI and SQLAlchemy"
-
 
 app = FastAPI(
     title="Book Management API",
@@ -35,5 +36,6 @@ app = FastAPI(
     },
 )
 
-
+app.include_router(auth.auth_router, prefix=f"/api/{version}")
+app.include_router(user.user_router, prefix=f"/api/{version}")
 app.include_router(book.book_router, prefix=f"/api/{version}")

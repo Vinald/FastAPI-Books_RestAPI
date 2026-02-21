@@ -1,7 +1,10 @@
-from datetime import datetime
 import uuid as uuid_lib
-from sqlalchemy import Column, String, Integer, Date, DateTime, Index
+from datetime import datetime
+
+from sqlalchemy import Column, String, Integer, Date, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
 from app.core.database import Base
 
 
@@ -18,6 +21,12 @@ class Book(Base):
     language = Column(String(255), nullable=False)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+    # Foreign key to User
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Relationship to User
+    owner = relationship("User", back_populates="books")
 
     def __repr__(self) -> str:
         return f"Book(id={self.id}, uuid={self.uuid}, title={self.title})"

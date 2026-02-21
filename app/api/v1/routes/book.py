@@ -2,7 +2,7 @@ from fastapi import APIRouter, status, Depends, HTTPException
 from app.schemas.book import BookCreate, BookOut, BookUpdate
 from typing import List
 from app.core.database import get_db
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.services.book_service import BookService
 import uuid
 

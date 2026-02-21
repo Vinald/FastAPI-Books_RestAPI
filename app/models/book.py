@@ -1,39 +1,22 @@
 from datetime import datetime, date
-from sqlmodel import SQLModel, Field, Column
 import uuid
-import sqlalchemy.dialects.postgresql as postgresql
+from sqlalchemy import Column, String, Integer, Date, DateTime
+from sqlalchemy.dialects.mysql import CHAR
+from app.core.database import Base
 
 
-class Book(SQLModel, table=True):
-
+class Book(Base):
     __tablename__ = "books"
 
-    uid: uuid.UUID | None = Field(
-        sa_column=Column(
-            postgresql.UUID(as_uuid=True),
-            primary_key=True,
-            nullable=False,
-            default=uuid.uuid4,
-        )
-    )
-    title: str = Field(nullable=False)
-    author: str = Field(nullable=False)
-    publisher: str = Field(nullable=False)
-    publish_date: date = Field(nullable=False)
-    pages: int = Field(nullable=False)
-    language: str = Field(nullable=False)
-    created_at: datetime = Field(
-        sa_column=Column(
-            postgresql.TIMESTAMP,
-            default=datetime.now,
-        )
-    )
-    updated_at: datetime = Field(
-        sa_column=Column(
-            postgresql.TIMESTAMP,
-            default=datetime.now,
-        )
-    )
+    uid = Column(CHAR(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    title = Column(String(255), nullable=False)
+    author = Column(String(255), nullable=False)
+    publisher = Column(String(255), nullable=False)
+    publish_date = Column(Date, nullable=False)
+    pages = Column(Integer, nullable=False)
+    language = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.now)
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
     def __repr__(self) -> str:
         return f"Book(uid={self.uid}, title={self.title}, author={self.author})"

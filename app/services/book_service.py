@@ -1,6 +1,6 @@
-from sqlmodel.ext.asyncio.session import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 from app.schemas.book import BookCreate, BookUpdate
-from sqlmodel import select, desc
 from app.models.book import Book
 from fastapi import HTTPException, status
 from datetime import date, datetime
@@ -11,15 +11,15 @@ class BookService:
     @staticmethod
     async def get_all_books(session: AsyncSession):
         statement = select(Book).order_by(desc(Book.created_at))
-        results = await session.exec(statement)
-        books = results.all()
+        result = await session.execute(statement)
+        books = result.scalars().all()
         return books
 
     @staticmethod
     async def get_book(book_uuid: uuid.UUID, session: AsyncSession):
-        statement = select(Book).where(Book.uid == book_uuid)
-        results = await session.exec(statement)
-        book = results.first()
+        statement = select(Book).where(Book.uid == str(book_uuid))
+        result = await session.execute(statement)
+        book = result.scalars().first()
         return book if book else None
 
     @staticmethod

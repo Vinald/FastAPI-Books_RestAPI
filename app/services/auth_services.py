@@ -81,7 +81,9 @@ class AuthService:
         )
 
     async def register(self, user_data: RegisterRequest, session: AsyncSession) -> User:
-        """Register a new user."""
+        """Register a new user (always gets USER role)."""
+        from app.models.user import UserRole
+
         # Check if email already exists
         existing_email = await self.user_service.get_user_by_email(user_data.email, session)
         if existing_email:
@@ -101,11 +103,17 @@ class AuthService:
         # Hash password and create user
         hashed_password = get_password_hash(user_data.password)
 
-        # Create user
-        user_dict = user_data.model_dump()
-        user_dict["password"] = hashed_password
+        # Create user with USER role (public registration always gets USER role)
+        new_user = User(
+            username=user_data.username,
+            email=user_data.email,
+            first_name=user_data.first_name,
+            last_name=user_data.last_name,
+            password=hashed_password,
+            role=UserRole.USER,  # Force USER role for public registration
+            is_active=True
+        )
 
-        new_user = User(**user_dict)
         session.add(new_user)
         await session.commit()
         await session.refresh(new_user)

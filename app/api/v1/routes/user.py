@@ -8,7 +8,12 @@ from app.core.database import get_session
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.schemas.auth import MessageResponse
-from app.schemas.user import ShowUser, UserWithBooks, UserUpdate, PasswordChange
+from app.schemas.user import (
+    ShowUser,
+    UserWithBooks,
+    UserUpdate,
+    PasswordChange
+)
 from app.services.user_services import UserService
 
 user_router = APIRouter(
@@ -35,9 +40,31 @@ async def get_me(
         session: AsyncSession = Depends(get_session)
 ) -> UserWithBooks:
     """Get current authenticated user."""
-    # Fetch user with books relationship loaded
     user = await user_service.get_user_by_uuid(current_user.uuid, session)
     return user
+
+
+@user_router.post(
+    "/change-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Change password",
+    description="Change the current user's password."
+)
+async def change_password(
+        password_data: PasswordChange,
+        session: AsyncSession = Depends(get_session),
+        current_user: User = Depends(get_current_active_user)
+) -> MessageResponse:
+    """Change current user's password."""
+    result = await user_service.change_password(
+        user_uuid=current_user.uuid,
+        current_password=password_data.current_password,
+        new_password=password_data.new_password,
+        session=session,
+        current_user=current_user
+    )
+    return MessageResponse(**result)
 
 
 @user_router.get(
@@ -53,27 +80,6 @@ async def get_all_users(
     """Get all users."""
     users = await user_service.get_all_users(session)
     return users
-
-
-@user_router.get(
-    "/{user_uuid}",
-    response_model=UserWithBooks,
-    status_code=status.HTTP_200_OK,
-    summary="Get user by UUID",
-    description="Retrieve a specific user by their UUID, including their books."
-)
-async def get_user_by_uuid(
-        user_uuid: uuid.UUID,
-        session: AsyncSession = Depends(get_session)
-) -> UserWithBooks:
-    """Get a user by UUID."""
-    user = await user_service.get_user_by_uuid(user_uuid, session)
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_uuid} not found"
-        )
-    return user
 
 
 @user_router.get(
@@ -97,12 +103,33 @@ async def get_user_by_email(
     return user
 
 
+@user_router.get(
+    "/{user_uuid}",
+    response_model=UserWithBooks,
+    status_code=status.HTTP_200_OK,
+    summary="Get user by UUID",
+    description="Retrieve a specific user by their UUID, including their books."
+)
+async def get_user_by_uuid(
+        user_uuid: uuid.UUID,
+        session: AsyncSession = Depends(get_session)
+) -> UserWithBooks:
+    """Get a user by UUID."""
+    user = await user_service.get_user_by_uuid(user_uuid, session)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"User {user_uuid} not found"
+        )
+    return user
+
+
 @user_router.patch(
     "/{user_uuid}",
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Update a user",
-    description="Update an existing user's information (requires authentication, can only update own profile)."
+    description="Update an existing user's information (can only update own profile, admins can update anyone)."
 )
 async def update_user(
         user_uuid: uuid.UUID,
@@ -122,7 +149,7 @@ async def update_user(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete a user",
-    description="Delete a user from the database (requires authentication, can only delete own account)."
+    description="Delete a user from the database (can only delete own account, admins can delete anyone)."
 )
 async def delete_user(
         user_uuid: uuid.UUID,
@@ -131,27 +158,4 @@ async def delete_user(
 ) -> MessageResponse:
     """Delete a user."""
     result = await user_service.delete_user(user_uuid, session, current_user)
-    return MessageResponse(**result)
-
-
-@user_router.post(
-    "/change-password",
-    response_model=MessageResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Change password",
-    description="Change the current user's password."
-)
-async def change_password(
-        password_data: PasswordChange,
-        session: AsyncSession = Depends(get_session),
-        current_user: User = Depends(get_current_active_user)
-) -> MessageResponse:
-    """Change current user's password."""
-    result = await user_service.change_password(
-        user_uuid=current_user.uuid,
-        current_password=password_data.current_password,
-        new_password=password_data.new_password,
-        session=session,
-        current_user=current_user
-    )
     return MessageResponse(**result)

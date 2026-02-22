@@ -1,8 +1,16 @@
 import uuid
 from datetime import datetime
+from enum import Enum
 from typing import Optional, List
 
 from pydantic import BaseModel, EmailStr, Field
+
+
+class UserRole(str, Enum):
+    """User roles for access control."""
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+    USER = "user"
 
 
 class UserBase(BaseModel):
@@ -14,6 +22,14 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(..., min_length=8, max_length=100)
+    role: UserRole = UserRole.USER  # Default role for new users
+
+
+class UserCreateAdmin(UserBase):
+    """Schema for admin creating users with any role."""
+    password: str = Field(..., min_length=8, max_length=100)
+    role: UserRole = UserRole.USER
+    is_active: bool = True
 
 
 class UserUpdate(BaseModel):
@@ -24,6 +40,11 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
+class UserUpdateAdmin(UserUpdate):
+    """Schema for admin updating users - can change role."""
+    role: Optional[UserRole] = None
+
+
 class PasswordChange(BaseModel):
     current_password: str
     new_password: str = Field(..., min_length=8, max_length=100)
@@ -31,6 +52,7 @@ class PasswordChange(BaseModel):
 
 class ShowUser(UserBase):
     uuid: uuid.UUID
+    role: UserRole
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -52,3 +74,8 @@ class UserWithBooks(ShowUser):
     books: List[BookInUser] = []
 
     model_config = {"from_attributes": True}
+
+
+# Aliases for backward compatibility
+UserOut = ShowUser
+ShowUserWithBooks = UserWithBooks

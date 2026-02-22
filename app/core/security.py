@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Tuple
+from typing import Optional, Tuple, List
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_session
-from app.models.user import User
+from app.models.user import User, UserRole
 
 # Password hashing context
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -170,3 +170,86 @@ async def get_current_active_user(
             detail="Inactive user"
         )
     return current_user
+
+
+# =============================================================================
+# Role-Based Access Control (RBAC) Dependencies
+# =============================================================================
+
+class RoleChecker:
+    """
+    Dependency class for checking user roles.
+
+    Usage:
+        @router.get("/admin-only")
+        async def admin_endpoint(user: User = Depends(RoleChecker([UserRole.ADMIN]))):
+            ...
+    """
+
+    def __init__(self, allowed_roles: List[UserRole]):
+        self.allowed_roles = allowed_roles
+
+    async def __call__(self, current_user: User = Depends(get_current_active_user)) -> User:
+        if current_user.role not in self.allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Access denied. Required roles: {[r.value for r in self.allowed_roles]}"
+            )
+        return current_user
+
+
+# Pre-configured role checkers for common use cases
+require_admin = RoleChecker([UserRole.ADMIN])
+require_moderator = RoleChecker([UserRole.MODERATOR, UserRole.ADMIN])
+require_user = RoleChecker([UserRole.USER, UserRole.MODERATOR, UserRole.ADMIN])
+
+
+async def get_admin_user(
+        current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Dependency that requires admin role."""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
+async def get_moderator_user(
+        current_user: User = Depends(get_current_active_user)
+) -> User:
+    """Dependency that requires at least moderator role."""
+    if current_user.role not in (UserRole.ADMIN, UserRole.MODERATOR):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Moderator access required"
+        )
+    return current_user
+
+
+def check_resource_ownership_or_admin(
+        resource_owner_id: int,
+        current_user: User
+) -> bool:
+    """
+    Check if user owns the resource or is an admin.
+
+    Args:
+        resource_owner_id: The owner's user ID
+        current_user: The current authenticated user
+
+    Returns:
+        True if user owns resource or is admin
+
+    Raises:
+        HTTPException: If user doesn't have access
+    """
+    if current_user.role == UserRole.ADMIN:
+        return True
+    if current_user.id == resource_owner_id:
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You don't have permission to access this resource"
+    )

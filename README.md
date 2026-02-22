@@ -128,15 +128,25 @@ FastAPI-Books_RestAPI/
 
 ### Users (`/api/v1.0/users`)
 
-| Method | Endpoint           | Description              | Auth Required |
-|--------|--------------------|--------------------------|---------------|
-| GET    | `/me`              | Get current user profile | ✅             |
-| GET    | `/`                | List all users           | ❌             |
-| GET    | `/{user_uuid}`     | Get user by UUID         | ❌             |
-| GET    | `/email/{email}`   | Get user by email        | ❌             |
-| PATCH  | `/{user_uuid}`     | Update user profile      | ✅             |
-| DELETE | `/{user_uuid}`     | Delete user account      | ✅             |
-| POST   | `/change-password` | Change password          | ✅             |
+| Method | Endpoint           | Description              | Auth Required | Role Required |
+|--------|--------------------|--------------------------|---------------|---------------|
+| GET    | `/me`              | Get current user profile | ✅             | Any           |
+| GET    | `/`                | List all users           | ❌             | -             |
+| GET    | `/{user_uuid}`     | Get user by UUID         | ❌             | -             |
+| GET    | `/email/{email}`   | Get user by email        | ❌             | -             |
+| PATCH  | `/{user_uuid}`     | Update user profile      | ✅             | Any (own)     |
+| DELETE | `/{user_uuid}`     | Delete user account      | ✅             | Any (own)     |
+| POST   | `/change-password` | Change password          | ✅             | Any           |
+
+### Admin User Management (`/api/v1.0/users/admin`)
+
+| Method | Endpoint                      | Description               | Auth Required | Role Required |
+|--------|-------------------------------|---------------------------|---------------|---------------|
+| POST   | `/admin/create`               | Create user with any role | ✅             | Admin         |
+| PATCH  | `/admin/{user_uuid}`          | Update any user           | ✅             | Admin         |
+| DELETE | `/admin/{user_uuid}`          | Delete any user           | ✅             | Admin         |
+| PATCH  | `/admin/{user_uuid}/role`     | Change user role          | ✅             | Admin         |
+| PATCH  | `/admin/{user_uuid}/activate` | Activate/deactivate user  | ✅             | Admin         |
 
 ### Books (`/api/v1.0/books`)
 
@@ -148,6 +158,71 @@ FastAPI-Books_RestAPI/
 | POST   | `/`            | Create a new book         | ✅             |
 | PATCH  | `/{book_uuid}` | Update a book             | ✅             |
 | DELETE | `/{book_uuid}` | Delete a book             | ✅             |
+
+## 🛡️ Role-Based Access Control (RBAC)
+
+The API implements three user roles with different permission levels:
+
+### Roles
+
+| Role        | Description                       | Permissions                             |
+|-------------|-----------------------------------|-----------------------------------------|
+| `USER`      | Default role for registered users | CRUD own profile, CRUD own books        |
+| `MODERATOR` | Elevated privileges               | All USER permissions + moderate content |
+| `ADMIN`     | Full system access                | All permissions + manage users & roles  |
+
+### Role Hierarchy
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      ROLE HIERARCHY                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                              │
+│    ADMIN (Full Access)                                       │
+│      │                                                       │
+│      ├── Create users with any role                          │
+│      ├── Update any user (including role)                    │
+│      ├── Delete any user                                     │
+│      ├── Activate/deactivate users                           │
+│      └── All MODERATOR permissions                           │
+│                                                              │
+│    MODERATOR                                                 │
+│      │                                                       │
+│      ├── Moderate content (future feature)                   │
+│      └── All USER permissions                                │
+│                                                              │
+│    USER (Default)                                            │
+│      │                                                       │
+│      ├── CRUD own profile                                    │
+│      ├── CRUD own books                                      │
+│      ├── Change own password                                 │
+│      └── View public resources                               │
+│                                                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Using Role-Based Dependencies
+
+```python
+from app.core.security import (
+    get_admin_user,
+    get_moderator_user,
+    RoleChecker
+)
+from app.models.user import UserRole
+
+
+# Method 1: Use pre-configured dependencies
+@router.get("/admin-only")
+async def admin_endpoint(user: User = Depends(get_admin_user)):
+    ...
+
+
+# Method 2: Use RoleChecker with custom roles
+@router.get("/mod-or-admin")
+async def mod_endpoint(user: User = Depends(RoleChecker([UserRole.MODERATOR, UserRole.ADMIN]))):
+    ...
+```
 
 ## 🔐 Authentication Flow
 
@@ -201,6 +276,7 @@ Key)
 - email: String(Unique)
 - first_name: String
 - last_name: String
+- role: Enum(ADMIN, MODERATOR, USER) - Default: USER
 - password: String(Hashed)
 - is_active: Boolean
 - created_at: DateTime

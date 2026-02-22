@@ -119,7 +119,8 @@ class AuthService:
         await session.refresh(new_user)
         return new_user
 
-    async def logout(self, token: str) -> dict:
+    @staticmethod
+    async def logout(token: str) -> dict:
         """
         Logout by adding the current token to the blacklist.
 
@@ -164,7 +165,8 @@ class AuthService:
                 detail="Invalid token"
             )
 
-    async def logout_all_devices(self, user_uuid: str) -> dict:
+    @staticmethod
+    async def logout_all_devices(user_uuid: str) -> dict:
         """
         Logout from all devices by blacklisting all tokens for a user.
 

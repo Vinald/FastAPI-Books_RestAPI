@@ -2,13 +2,14 @@ import uuid
 from typing import Optional, List
 
 from fastapi import HTTPException, status
+from pydantic import EmailStr
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate
+from app.schemas.user import UserUpdate
 
 
 class UserService:
@@ -29,7 +30,7 @@ class UserService:
         return user
 
     @staticmethod
-    async def get_user_by_email(email: str, session: AsyncSession) -> Optional[User]:
+    async def get_user_by_email(email: EmailStr, session: AsyncSession) -> Optional[User]:
         """Get a user by email."""
         statement = select(User).where(User.email == email)
         result = await session.execute(statement)
@@ -43,38 +44,6 @@ class UserService:
         result = await session.execute(statement)
         user = result.scalars().first()
         return user
-
-    @staticmethod
-    async def create_user(user_data: UserCreate, session: AsyncSession) -> User:
-        """Create a new user."""
-        # Check if email already exists
-        existing_user = await UserService.get_user_by_email(user_data.email, session)
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-
-        # Check if username already exists
-        existing_username = await UserService.get_user_by_username(user_data.username, session)
-        if existing_username:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
-
-        # Hash the password
-        hashed_password = get_password_hash(user_data.password)
-
-        # Create user
-        user_dict = user_data.model_dump()
-        user_dict["password"] = hashed_password
-
-        new_user = User(**user_dict)
-        session.add(new_user)
-        await session.commit()
-        await session.refresh(new_user)
-        return new_user
 
     async def update_user(
             self,

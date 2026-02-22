@@ -2,6 +2,7 @@ from datetime import timedelta
 from typing import Optional
 
 from fastapi import HTTPException, status
+from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -23,7 +24,7 @@ class AuthService:
 
     async def authenticate_user(
             self,
-            email: str,
+            email: EmailStr,
             password: str,
             session: AsyncSession
     ) -> Optional[User]:
@@ -37,7 +38,7 @@ class AuthService:
 
     async def login(
             self,
-            email: str,
+            email: EmailStr,
             password: str,
             session: AsyncSession
     ) -> Token:
@@ -73,11 +74,7 @@ class AuthService:
             token_type="bearer"
         )
 
-    async def register(
-            self,
-            user_data: RegisterRequest,
-            session: AsyncSession
-    ) -> User:
+    async def register(self, user_data: RegisterRequest, session: AsyncSession) -> User:
         """Register a new user."""
         # Check if email already exists
         existing_email = await self.user_service.get_user_by_email(user_data.email, session)
@@ -98,19 +95,14 @@ class AuthService:
         # Hash password and create user
         hashed_password = get_password_hash(user_data.password)
 
-        new_user = User(
-            username=user_data.username,
-            email=user_data.email,
-            first_name=user_data.first_name,
-            last_name=user_data.last_name,
-            password=hashed_password,
-            is_active=True
-        )
+        # Create user
+        user_dict = user_data.model_dump()
+        user_dict["password"] = hashed_password
 
+        new_user = User(**user_dict)
         session.add(new_user)
         await session.commit()
         await session.refresh(new_user)
-
         return new_user
 
     async def refresh_access_token(

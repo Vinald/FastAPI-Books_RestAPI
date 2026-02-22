@@ -2,9 +2,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jwt import InvalidTokenError
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -59,7 +60,7 @@ def decode_token(token: str) -> dict:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except JWTError:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",
@@ -82,7 +83,7 @@ async def get_current_user(
         user_uuid: str = payload.get("sub")
         if user_uuid is None:
             raise credentials_exception
-    except JWTError:
+    except InvalidTokenError:
         raise credentials_exception
 
     # Get user from database

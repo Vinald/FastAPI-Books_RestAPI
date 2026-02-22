@@ -27,7 +27,6 @@ mdurl==0.1.2
 orjson==3.11.3
 passlib[bcrypt]==1.7.4
 psycopg2==2.9.11
-pyasn1==0.6.2
 pydantic==2.12.3
 pydantic-extra-types==2.10.6
 pydantic-settings==2.11.0
@@ -35,13 +34,12 @@ pydantic_core==2.41.4
 Pygments==2.19.2
 PyMySQL==1.1.2
 python-dotenv==1.1.1
-python-jose[cryptography]==3.3.0
+PyJWT==2.11.0
 python-multipart==0.0.22
 PyYAML==6.0.3
 rich==14.2.0
 rich-toolkit==0.15.1
 rignore==0.7.1
-rsa==4.9.1
 sentry-sdk==2.42.1
 shellingham==1.5.4
 six==1.17.0

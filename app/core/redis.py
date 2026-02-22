@@ -1,6 +1,12 @@
+import logging
+from typing import Optional
+
 import redis.asyncio as redis
+from redis.exceptions import ConnectionError, RedisError
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 # Create async Redis connection pool
 redis_pool = redis.ConnectionPool(
@@ -15,6 +21,30 @@ token_blacklist = redis.Redis(connection_pool=redis_pool)
 
 # Key prefix for blacklisted tokens
 TOKEN_BLACKLIST_PREFIX = "blacklist:token:"
+
+# Flag to track Redis availability
+_redis_available: Optional[bool] = None
+
+
+async def check_redis_connection() -> bool:
+    """Check if Redis is available."""
+    global _redis_available
+    try:
+        await token_blacklist.ping()
+        _redis_available = True
+        return True
+    except (ConnectionError, RedisError) as e:
+        logger.warning(f"Redis is not available: {e}")
+        _redis_available = False
+        return False
+
+
+async def is_redis_available() -> bool:
+    """Return cached Redis availability status or check if unknown."""
+    global _redis_available
+    if _redis_available is None:
+        return await check_redis_connection()
+    return _redis_available
 
 
 async def add_token_to_blacklist(jti: str, expires_in: int) -> bool:
@@ -33,7 +63,11 @@ async def add_token_to_blacklist(jti: str, expires_in: int) -> bool:
         # Set the token in Redis with expiration (no need to keep it after token would expire anyway)
         await token_blacklist.setex(key, expires_in, "revoked")
         return True
-    except Exception:
+    except (ConnectionError, RedisError) as e:
+        logger.error(f"Failed to add token to blacklist: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error adding token to blacklist: {e}")
         return False
 
 
@@ -51,9 +85,13 @@ async def is_token_blacklisted(jti: str) -> bool:
         key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
         result = await token_blacklist.get(key)
         return result is not None
-    except Exception:
+    except (ConnectionError, RedisError) as e:
+        logger.warning(f"Redis unavailable when checking blacklist: {e}")
         # If Redis is unavailable, fail open (allow the token)
         # You might want to fail closed in high-security environments
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking token blacklist: {e}")
         return False
 
 
@@ -71,7 +109,11 @@ async def remove_token_from_blacklist(jti: str) -> bool:
         key = f"{TOKEN_BLACKLIST_PREFIX}{jti}"
         await token_blacklist.delete(key)
         return True
-    except Exception:
+    except (ConnectionError, RedisError) as e:
+        logger.error(f"Failed to remove token from blacklist: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error removing token from blacklist: {e}")
         return False
 
 
@@ -93,7 +135,11 @@ async def blacklist_all_user_tokens(user_uuid: str, expires_in: int) -> bool:
         # Store the timestamp - any token issued before this is invalid
         await token_blacklist.setex(key, expires_in, str(int(time.time())))
         return True
-    except Exception:
+    except (ConnectionError, RedisError) as e:
+        logger.error(f"Failed to blacklist all user tokens: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error blacklisting all user tokens: {e}")
         return False
 
 
@@ -114,10 +160,17 @@ async def is_user_token_blacklisted(user_uuid: str, token_iat: int) -> bool:
         if blacklist_time is None:
             return False
         return token_iat < int(blacklist_time)
-    except Exception:
+    except (ConnectionError, RedisError) as e:
+        logger.warning(f"Redis unavailable when checking user token blacklist: {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error checking user token blacklist: {e}")
         return False
 
 
 async def close_redis_connection():
     """Close Redis connection pool."""
-    await token_blacklist.close()
+    try:
+        await token_blacklist.close()
+    except Exception as e:
+        logger.error(f"Error closing Redis connection: {e}")

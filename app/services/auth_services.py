@@ -142,8 +142,8 @@ class AuthService:
 
             if not success:
                 raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail="Failed to revoke token"
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Token revocation service is temporarily unavailable. Please try again later."
                 )
 
             return {"message": "Successfully logged out"}
@@ -173,8 +173,8 @@ class AuthService:
 
         if not success:
             raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Failed to logout from all devices"
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Token revocation service is temporarily unavailable. Please try again later."
             )
 
         return {"message": "Successfully logged out from all devices"}

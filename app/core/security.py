@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Optional
+from typing import Optional, Tuple
 
 import jwt
 from fastapi import Depends, HTTPException, status
@@ -31,28 +31,69 @@ def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT access token."""
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> Tuple[str, str]:
+    """
+    Create a JWT access token with a unique JTI (JWT ID).
+
+    Args:
+        data: Payload data (usually contains 'sub' with user UUID)
+        expires_delta: Optional custom expiration time
+
+    Returns:
+        Tuple of (encoded_jwt, jti) - the token and its unique ID for revocation
+    """
     to_encode = data.copy()
+
+    # Generate unique token ID for revocation tracking
+    jti = str(uuid.uuid4())
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode.update({"exp": expire})
+
+    # Add standard JWT claims
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),  # Issued at
+        "jti": jti,  # JWT ID for revocation
+        "type": "access"
+    })
+
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return encoded_jwt, jti
 
 
-def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
-    """Create a JWT refresh token."""
+def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) -> Tuple[str, str]:
+    """
+    Create a JWT refresh token with a unique JTI.
+
+    Args:
+        data: Payload data (usually contains 'sub' with user UUID)
+        expires_delta: Optional custom expiration time
+
+    Returns:
+        Tuple of (encoded_jwt, jti) - the token and its unique ID for revocation
+    """
     to_encode = data.copy()
+
+    # Generate unique token ID for revocation tracking
+    jti = str(uuid.uuid4())
+
     if expires_delta:
         expire = datetime.now(timezone.utc) + expires_delta
     else:
         expire = datetime.now(timezone.utc) + timedelta(days=7)  # Refresh tokens last 7 days
-    to_encode.update({"exp": expire, "refresh": True})
+
+    to_encode.update({
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": jti,
+        "type": "refresh"
+    })
+
     encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
-    return encoded_jwt
+    return encoded_jwt, jti
 
 
 def decode_token(token: str) -> dict:
@@ -73,18 +114,40 @@ async def get_current_user(
         session: AsyncSession = Depends(get_session)
 ) -> User:
     """Get the current authenticated user from the JWT token."""
+    # Import here to avoid circular imports
+    from app.core.redis import is_token_blacklisted, is_user_token_blacklisted
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    revoked_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Token has been revoked",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         user_uuid: str = payload.get("sub")
+        jti: str = payload.get("jti")
+        iat: int = payload.get("iat")
+
         if user_uuid is None:
             raise credentials_exception
+
     except InvalidTokenError:
         raise credentials_exception
+
+    # Check if this specific token is blacklisted
+    if jti and await is_token_blacklisted(jti):
+        raise revoked_exception
+
+    # Check if all user tokens before a certain time are blacklisted (logout all devices)
+    if iat and await is_user_token_blacklisted(user_uuid, iat):
+        raise revoked_exception
 
     # Get user from database
     statement = select(User).where(User.uuid == uuid.UUID(user_uuid))

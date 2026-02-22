@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.api.v1.routes import book, auth, user
 from app.core.database import engine, Base
+from app.core.redis import close_redis_connection
 
 
 @asynccontextmanager
@@ -12,7 +13,11 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     print("Starting up the application...")
+    print("Redis connection pool initialized...")
     yield
+    # Cleanup on shutdown
+    print("Closing Redis connections...")
+    await close_redis_connection()
     print("Shutting down the application...")
 
 

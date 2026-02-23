@@ -34,6 +34,9 @@ class User(Base):
     # Relationship to Books
     books = relationship("Book", back_populates="owner", lazy="selectin")
 
+    # Relationship to Reviews
+    reviews = relationship("Review", back_populates="reviewer", lazy="selectin")
+
     def __repr__(self) -> str:
         return f"User(id={self.id}, uuid={self.uuid}, username={self.username}, role={self.role})"
 

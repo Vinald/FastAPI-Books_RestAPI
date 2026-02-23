@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.api.v1.routes import book, auth, user, admin
+from app.api.v1.routes import book, auth, user, admin, review
 
 version = "v1.0"
 description = f"API version {version} - A simple book management API built with FastAPI and SQLAlchemy"
@@ -25,3 +25,4 @@ app.include_router(auth.auth_router, prefix=f"/api/{version}")
 app.include_router(user.user_router, prefix=f"/api/{version}")
 app.include_router(admin.admin_router, prefix=f"/api/{version}")
 app.include_router(book.book_router, prefix=f"/api/{version}")
+app.include_router(review.review_router, prefix=f"/api/{version}")

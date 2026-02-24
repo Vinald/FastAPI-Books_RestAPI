@@ -82,8 +82,8 @@ class ReviewService:
         result = await session.execute(statement)
         return list(result.scalars().all())
 
+    @staticmethod
     async def create_review(
-            self,
             book_uuid: uuid.UUID,
             review_data: ReviewCreate,
             current_user: User,

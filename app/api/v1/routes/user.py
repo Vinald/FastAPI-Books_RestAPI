@@ -1,10 +1,12 @@
 import uuid
 from typing import List
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.exceptions import UserNotFoundException
+from app.core.responses import PUBLIC_RESPONSES, AUTH_RESPONSES
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.schemas.auth import MessageResponse
@@ -19,10 +21,6 @@ from app.services.user_services import UserService
 user_router = APIRouter(
     prefix="/users",
     tags=["Users"],
-    responses={
-        404: {"description": "User not found"},
-        500: {"description": "Internal server error"}
-    }
 )
 
 user_service = UserService()
@@ -33,7 +31,8 @@ user_service = UserService()
     response_model=UserWithBooks,
     status_code=status.HTTP_200_OK,
     summary="Get current user",
-    description="Get the currently authenticated user's profile with their books."
+    description="Get the currently authenticated user's profile with their books.",
+    responses=AUTH_RESPONSES
 )
 async def get_me(
         current_user: User = Depends(get_current_active_user),
@@ -49,7 +48,8 @@ async def get_me(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Change password",
-    description="Change the current user's password."
+    description="Change the current user's password.",
+    responses=AUTH_RESPONSES
 )
 async def change_password(
         password_data: PasswordChange,
@@ -72,7 +72,8 @@ async def change_password(
     response_model=List[ShowUser],
     status_code=status.HTTP_200_OK,
     summary="Get all users",
-    description="Retrieve a list of all registered users."
+    description="Retrieve a list of all registered users.",
+    responses={500: PUBLIC_RESPONSES[500]}
 )
 async def get_all_users(
         session: AsyncSession = Depends(get_session)
@@ -87,7 +88,8 @@ async def get_all_users(
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Get user by email",
-    description="Retrieve a specific user by their email address."
+    description="Retrieve a specific user by their email address.",
+    responses=PUBLIC_RESPONSES
 )
 async def get_user_by_email(
         email: str,
@@ -96,10 +98,7 @@ async def get_user_by_email(
     """Get a user by email."""
     user = await user_service.get_user_by_email(email, session)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User with email {email} not found"
-        )
+        raise UserNotFoundException(email)
     return user
 
 
@@ -108,7 +107,8 @@ async def get_user_by_email(
     response_model=UserWithBooks,
     status_code=status.HTTP_200_OK,
     summary="Get user by UUID",
-    description="Retrieve a specific user by their UUID, including their books."
+    description="Retrieve a specific user by their UUID, including their books.",
+    responses=PUBLIC_RESPONSES
 )
 async def get_user_by_uuid(
         user_uuid: uuid.UUID,
@@ -117,10 +117,7 @@ async def get_user_by_uuid(
     """Get a user by UUID."""
     user = await user_service.get_user_by_uuid(user_uuid, session)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"User {user_uuid} not found"
-        )
+        raise UserNotFoundException(user_uuid)
     return user
 
 
@@ -129,7 +126,8 @@ async def get_user_by_uuid(
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Update a user",
-    description="Update an existing user's information (can only update own profile, admins can update anyone)."
+    description="Update an existing user's information (can only update own profile, admins can update anyone).",
+    responses=AUTH_RESPONSES
 )
 async def update_user(
         user_uuid: uuid.UUID,
@@ -149,7 +147,8 @@ async def update_user(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete a user",
-    description="Delete a user from the database (can only delete own account, admins can delete anyone)."
+    description="Delete a user from the database (can only delete own account, admins can delete anyone).",
+    responses=AUTH_RESPONSES
 )
 async def delete_user(
         user_uuid: uuid.UUID,

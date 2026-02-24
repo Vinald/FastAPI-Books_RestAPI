@@ -3,6 +3,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.responses import CREATE_RESPONSES, COMMON_RESPONSES
 from app.core.security import get_current_active_user, oauth2_scheme
 from app.models.user import User
 from app.schemas.auth import Token, RegisterRequest, RefreshTokenRequest, MessageResponse
@@ -12,10 +13,6 @@ from app.services.auth_services import AuthService
 auth_router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
-    responses={
-        404: {"description": "Not found"},
-        500: {"description": "Internal server error"}
-    }
 )
 
 auth_service = AuthService()
@@ -26,7 +23,12 @@ auth_service = AuthService()
     response_model=Token,
     status_code=status.HTTP_200_OK,
     summary="Login user",
-    description="Authenticate user with email and password, returns JWT tokens."
+    description="Authenticate user with email and password, returns JWT tokens.",
+    responses={
+        401: COMMON_RESPONSES[401],
+        403: COMMON_RESPONSES[403],
+        500: COMMON_RESPONSES[500]
+    }
 )
 async def login(
         form_data: OAuth2PasswordRequestForm = Depends(),
@@ -34,7 +36,7 @@ async def login(
 ) -> Token:
     """Login with email (as username) and password."""
     return await auth_service.login(
-        email=form_data.username,  # OAuth2 spec uses 'username' field
+        email=form_data.username,
         password=form_data.password,
         session=session
     )
@@ -45,7 +47,8 @@ async def login(
     response_model=ShowUser,
     status_code=status.HTTP_201_CREATED,
     summary="Register new user",
-    description="Create a new user account."
+    description="Create a new user account.",
+    responses=CREATE_RESPONSES
 )
 async def register(
         user_data: RegisterRequest,
@@ -60,7 +63,12 @@ async def register(
     response_model=Token,
     status_code=status.HTTP_200_OK,
     summary="Refresh access token",
-    description="Get a new access token using a refresh token. The old refresh token will be revoked."
+    description="Get a new access token using a refresh token. The old refresh token will be revoked.",
+    responses={
+        401: COMMON_RESPONSES[401],
+        403: COMMON_RESPONSES[403],
+        500: COMMON_RESPONSES[500]
+    }
 )
 async def refresh_token(
         token_data: RefreshTokenRequest,
@@ -75,7 +83,12 @@ async def refresh_token(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Logout user",
-    description="Revoke the current access token. The token will be blacklisted and cannot be used again."
+    description="Revoke the current access token. The token will be blacklisted and cannot be used again.",
+    responses={
+        401: COMMON_RESPONSES[401],
+        503: COMMON_RESPONSES[503],
+        500: COMMON_RESPONSES[500]
+    }
 )
 async def logout(
         token: str = Depends(oauth2_scheme),
@@ -91,7 +104,12 @@ async def logout(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Logout from all devices",
-    description="Revoke all tokens for the current user. User will be logged out from all devices."
+    description="Revoke all tokens for the current user. User will be logged out from all devices.",
+    responses={
+        401: COMMON_RESPONSES[401],
+        503: COMMON_RESPONSES[503],
+        500: COMMON_RESPONSES[500]
+    }
 )
 async def logout_all_devices(
         current_user: User = Depends(get_current_active_user)

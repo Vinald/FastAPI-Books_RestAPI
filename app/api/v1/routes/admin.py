@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.responses import ADMIN_RESPONSES
 from app.core.security import get_admin_user
 from app.models.user import User, UserRole
 from app.schemas.auth import MessageResponse
@@ -17,11 +18,6 @@ from app.services.user_services import UserService
 admin_router = APIRouter(
     prefix="/admin",
     tags=["Admin"],
-    responses={
-        403: {"description": "Forbidden - Admin access required"},
-        404: {"description": "Not found"},
-        500: {"description": "Internal server error"}
-    }
 )
 
 user_service = UserService()
@@ -32,7 +28,8 @@ user_service = UserService()
     response_model=ShowUser,
     status_code=status.HTTP_201_CREATED,
     summary="Create user with any role",
-    description="Create a new user with any role (Admin only)."
+    description="Create a new user with any role (Admin only).",
+    responses=ADMIN_RESPONSES
 )
 async def admin_create_user(
         user_data: UserCreateAdmin,
@@ -49,7 +46,8 @@ async def admin_create_user(
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Update any user",
-    description="Update any user including their role (Admin only)."
+    description="Update any user including their role (Admin only).",
+    responses=ADMIN_RESPONSES
 )
 async def admin_update_user(
         user_uuid: uuid.UUID,
@@ -67,7 +65,8 @@ async def admin_update_user(
     response_model=MessageResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete any user",
-    description="Delete any user (Admin only)."
+    description="Delete any user (Admin only).",
+    responses=ADMIN_RESPONSES
 )
 async def admin_delete_user(
         user_uuid: uuid.UUID,
@@ -84,7 +83,8 @@ async def admin_delete_user(
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Change user role",
-    description="Change a user's role (Admin only)."
+    description="Change a user's role (Admin only).",
+    responses=ADMIN_RESPONSES
 )
 async def admin_change_user_role(
         user_uuid: uuid.UUID,
@@ -102,7 +102,8 @@ async def admin_change_user_role(
     response_model=ShowUser,
     status_code=status.HTTP_200_OK,
     summary="Activate/Deactivate user",
-    description="Activate or deactivate a user account (Admin only)."
+    description="Activate or deactivate a user account (Admin only).",
+    responses=ADMIN_RESPONSES
 )
 async def admin_toggle_user_active(
         user_uuid: uuid.UUID,

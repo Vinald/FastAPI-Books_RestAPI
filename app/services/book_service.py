@@ -2,10 +2,14 @@ import uuid
 from datetime import date, datetime
 from typing import Optional, List
 
-from fastapi import HTTPException, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import (
+    BookNotFoundException,
+    OwnershipRequiredException,
+    ValidationException
+)
 from app.models.book import Book
 from app.models.user import User
 from app.schemas.book import BookCreate, BookUpdate
@@ -44,22 +48,18 @@ class BookService:
         pd = book_data_dict.get("publish_date")
 
         if isinstance(pd, str):
-            # Accept ISO date or ISO datetime strings
             try:
                 book_data_dict["publish_date"] = date.fromisoformat(pd)
             except ValueError:
                 try:
                     book_data_dict["publish_date"] = datetime.fromisoformat(pd).date()
                 except ValueError:
-                    raise HTTPException(
-                        status_code=status.HTTP_400_BAD_REQUEST,
-                        detail="publish_date must be an ISO date or datetime string (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
+                    raise ValidationException(
+                        "publish_date must be an ISO date or datetime string (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
                     )
         elif isinstance(pd, datetime):
             book_data_dict["publish_date"] = pd.date()
-        # if already a date or missing, leave as is
 
-        # Associate with user if provided
         if user_id:
             book_data_dict["user_id"] = user_id
 
@@ -79,18 +79,12 @@ class BookService:
         book_to_update = await self.get_book(book_uuid, session)
 
         if not book_to_update:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book {book_uuid} not found",
-            )
+            raise BookNotFoundException(book_uuid)
 
         # Check ownership if user is authenticated
         if current_user and book_to_update.user_id:
-            if book_to_update.user_id != current_user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only update your own books"
-                )
+            if book_to_update.user_id != current_user.id and current_user.role.value != "admin":
+                raise OwnershipRequiredException("books")
 
         update_data_dict = update_data.model_dump(exclude_unset=True)
 
@@ -101,13 +95,10 @@ class BookService:
                     update_data_dict["publish_date"] = date.fromisoformat(pd)
                 except ValueError:
                     try:
-                        update_data_dict["publish_date"] = datetime.fromisoformat(
-                            pd
-                        ).date()
+                        update_data_dict["publish_date"] = datetime.fromisoformat(pd).date()
                     except ValueError:
-                        raise HTTPException(
-                            status_code=status.HTTP_400_BAD_REQUEST,
-                            detail="publish_date must be an ISO date or datetime string (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)",
+                        raise ValidationException(
+                            "publish_date must be an ISO date or datetime string (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)"
                         )
             elif isinstance(pd, datetime):
                 update_data_dict["publish_date"] = pd.date()
@@ -128,18 +119,12 @@ class BookService:
         book_to_delete = await self.get_book(book_uuid, session)
 
         if not book_to_delete:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book {book_uuid} not found",
-            )
+            raise BookNotFoundException(book_uuid)
 
         # Check ownership if user is authenticated
         if current_user and book_to_delete.user_id:
-            if book_to_delete.user_id != current_user.id:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="You can only delete your own books"
-                )
+            if book_to_delete.user_id != current_user.id and current_user.role.value != "admin":
+                raise OwnershipRequiredException("books")
 
         await session.delete(book_to_delete)
         await session.commit()

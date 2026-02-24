@@ -1,12 +1,18 @@
 import uuid
 from typing import Optional, List
 
-from fastapi import HTTPException, status
 from pydantic import EmailStr
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import (
+    UserNotFoundException,
+    DuplicateEmailException,
+    DuplicateUsernameException,
+    OwnershipRequiredException,
+    IncorrectPasswordException
+)
 from app.core.security import get_password_hash, verify_password
 from app.models.user import User, UserRole
 from app.schemas.user import UserUpdate, UserUpdateAdmin, UserCreateAdmin, UserCreate
@@ -51,18 +57,12 @@ class UserService:
         # Check if email already exists
         existing_email = await UserService.get_user_by_email(user_data.email, session)
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
+            raise DuplicateEmailException(user_data.email)
 
         # Check if username already exists
         existing_username = await UserService.get_user_by_username(user_data.username, session)
         if existing_username:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
+            raise DuplicateUsernameException(user_data.username)
 
         # Hash the password
         hashed_password = get_password_hash(user_data.password)
@@ -70,7 +70,7 @@ class UserService:
         # Create user with default USER role
         user_dict = user_data.model_dump()
         user_dict["password"] = hashed_password
-        user_dict["role"] = UserRole.USER  # Force USER role for public registration
+        user_dict["role"] = UserRole.USER
 
         new_user = User(**user_dict)
         session.add(new_user)
@@ -89,20 +89,14 @@ class UserService:
         user_to_update = await self.get_user_by_uuid(user_uuid, session)
 
         if not user_to_update:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         # Check if user is updating their own profile OR is an admin
         is_own_profile = user_to_update.uuid == current_user.uuid
         is_admin = current_user.role == UserRole.ADMIN
 
         if not is_own_profile and not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only update your own profile"
-            )
+            raise OwnershipRequiredException("profile")
 
         update_data_dict = update_data.model_dump(exclude_unset=True)
 
@@ -110,19 +104,13 @@ class UserService:
         if "email" in update_data_dict:
             existing_user = await self.get_user_by_email(update_data_dict["email"], session)
             if existing_user and existing_user.uuid != user_uuid:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already registered"
-                )
+                raise DuplicateEmailException(update_data_dict["email"])
 
         # Check if username is being updated and if it's already taken
         if "username" in update_data_dict:
             existing_user = await self.get_user_by_username(update_data_dict["username"], session)
             if existing_user and existing_user.uuid != user_uuid:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already taken"
-                )
+                raise DuplicateUsernameException(update_data_dict["username"])
 
         for key, value in update_data_dict.items():
             setattr(user_to_update, key, value)
@@ -142,20 +130,14 @@ class UserService:
         user_to_delete = await self.get_user_by_uuid(user_uuid, session)
 
         if not user_to_delete:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         # Check if user is deleting their own account OR is an admin
         is_own_account = user_to_delete.uuid == current_user.uuid
         is_admin = current_user.role == UserRole.ADMIN
 
         if not is_own_account and not is_admin:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only delete your own account"
-            )
+            raise OwnershipRequiredException("account")
 
         await session.delete(user_to_delete)
         await session.commit()
@@ -173,24 +155,15 @@ class UserService:
         user = await self.get_user_by_uuid(user_uuid, session)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         # Check if user is changing their own password
         if user.uuid != current_user.uuid:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only change your own password"
-            )
+            raise OwnershipRequiredException("password")
 
         # Verify current password
         if not verify_password(current_password, user.password):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Current password is incorrect"
-            )
+            raise IncorrectPasswordException()
 
         # Hash and set new password
         user.password = get_password_hash(new_password)
@@ -212,18 +185,12 @@ class UserService:
         # Check if email already exists
         existing_email = await self.get_user_by_email(user_data.email, session)
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
+            raise DuplicateEmailException(user_data.email)
 
         # Check if username already exists
         existing_username = await self.get_user_by_username(user_data.username, session)
         if existing_username:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
+            raise DuplicateUsernameException(user_data.username)
 
         # Hash the password
         hashed_password = get_password_hash(user_data.password)
@@ -248,10 +215,7 @@ class UserService:
         user_to_update = await self.get_user_by_uuid(user_uuid, session)
 
         if not user_to_update:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         update_data_dict = update_data.model_dump(exclude_unset=True)
 
@@ -259,19 +223,13 @@ class UserService:
         if "email" in update_data_dict:
             existing_user = await self.get_user_by_email(update_data_dict["email"], session)
             if existing_user and existing_user.uuid != user_uuid:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Email already registered"
-                )
+                raise DuplicateEmailException(update_data_dict["email"])
 
         # Check if username is being updated and if it's already taken
         if "username" in update_data_dict:
             existing_user = await self.get_user_by_username(update_data_dict["username"], session)
             if existing_user and existing_user.uuid != user_uuid:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Username already taken"
-                )
+                raise DuplicateUsernameException(update_data_dict["username"])
 
         for key, value in update_data_dict.items():
             setattr(user_to_update, key, value)
@@ -290,10 +248,7 @@ class UserService:
         user_to_delete = await self.get_user_by_uuid(user_uuid, session)
 
         if not user_to_delete:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         await session.delete(user_to_delete)
         await session.commit()
@@ -309,10 +264,7 @@ class UserService:
         user = await self.get_user_by_uuid(user_uuid, session)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         user.role = new_role
         session.add(user)
@@ -330,10 +282,7 @@ class UserService:
         user = await self.get_user_by_uuid(user_uuid, session)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         user.is_active = is_active
         session.add(user)

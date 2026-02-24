@@ -1,11 +1,17 @@
 import uuid
 from typing import List, Optional
 
-from fastapi import HTTPException, status
 from sqlalchemy import select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import (
+    BookNotFoundException,
+    UserNotFoundException,
+    ReviewNotFoundException,
+    DuplicateReviewException,
+    OwnershipRequiredException
+)
 from app.models.book import Book
 from app.models.review import Review
 from app.models.user import User
@@ -36,16 +42,12 @@ class ReviewService:
     @staticmethod
     async def get_reviews_by_book(book_uuid: uuid.UUID, session: AsyncSession) -> List[Review]:
         """Get all reviews for a specific book."""
-        # First get the book
         book_statement = select(Book).where(Book.uuid == book_uuid)
         book_result = await session.execute(book_statement)
         book = book_result.scalars().first()
 
         if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book {book_uuid} not found"
-            )
+            raise BookNotFoundException(book_uuid)
 
         statement = select(Review).where(Review.book_id == book.id).options(
             selectinload(Review.reviewer)
@@ -56,16 +58,12 @@ class ReviewService:
     @staticmethod
     async def get_reviews_by_user(user_uuid: uuid.UUID, session: AsyncSession) -> List[Review]:
         """Get all reviews by a specific user."""
-        # First get the user
         user_statement = select(User).where(User.uuid == user_uuid)
         user_result = await session.execute(user_statement)
         user = user_result.scalars().first()
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"User {user_uuid} not found"
-            )
+            raise UserNotFoundException(user_uuid)
 
         statement = select(Review).where(Review.user_id == user.id).options(
             selectinload(Review.book)
@@ -90,16 +88,12 @@ class ReviewService:
             session: AsyncSession
     ) -> Review:
         """Create a new review for a book."""
-        # Get the book
         book_statement = select(Book).where(Book.uuid == book_uuid)
         book_result = await session.execute(book_statement)
         book = book_result.scalars().first()
 
         if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book {book_uuid} not found"
-            )
+            raise BookNotFoundException(book_uuid)
 
         # Check if user already reviewed this book
         existing_review_statement = select(Review).where(
@@ -110,12 +104,8 @@ class ReviewService:
         existing_review = existing_result.scalars().first()
 
         if existing_review:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="You have already reviewed this book"
-            )
+            raise DuplicateReviewException()
 
-        # Create the review
         new_review = Review(
             content=review_data.content,
             rating=review_data.rating,
@@ -146,17 +136,11 @@ class ReviewService:
         review = await self.get_review_by_uuid(review_uuid, session)
 
         if not review:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Review {review_uuid} not found"
-            )
+            raise ReviewNotFoundException(review_uuid)
 
         # Check if user owns this review or is admin
         if review.user_id != current_user.id and current_user.role.value != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only update your own reviews"
-            )
+            raise OwnershipRequiredException("reviews")
 
         update_data = review_data.model_dump(exclude_unset=True)
         for key, value in update_data.items():
@@ -178,17 +162,11 @@ class ReviewService:
         review = await self.get_review_by_uuid(review_uuid, session)
 
         if not review:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Review {review_uuid} not found"
-            )
+            raise ReviewNotFoundException(review_uuid)
 
         # Check if user owns this review or is admin
         if review.user_id != current_user.id and current_user.role.value != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="You can only delete your own reviews"
-            )
+            raise OwnershipRequiredException("reviews")
 
         await session.delete(review)
         await session.commit()
@@ -198,18 +176,13 @@ class ReviewService:
     @staticmethod
     async def get_book_average_rating(book_uuid: uuid.UUID, session: AsyncSession) -> dict:
         """Get average rating for a book."""
-        # Get the book
         book_statement = select(Book).where(Book.uuid == book_uuid)
         book_result = await session.execute(book_statement)
         book = book_result.scalars().first()
 
         if not book:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Book {book_uuid} not found"
-            )
+            raise BookNotFoundException(book_uuid)
 
-        # Get all reviews for this book
         statement = select(Review).where(Review.book_id == book.id)
         result = await session.execute(statement)
         reviews = list(result.scalars().all())

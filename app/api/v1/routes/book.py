@@ -1,10 +1,12 @@
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, status, Depends, HTTPException
+from fastapi import APIRouter, status, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_session
+from app.core.exceptions import BookNotFoundException
+from app.core.responses import PUBLIC_RESPONSES, AUTH_RESPONSES, CREATE_RESPONSES
 from app.core.security import get_current_active_user
 from app.models.user import User
 from app.schemas.book import BookCreate, BookOut, BookUpdate
@@ -15,14 +17,28 @@ book_router = APIRouter(tags=["Books"], prefix="/books")
 book_service = BookService()
 
 
-@book_router.get("/", response_model=List[BookOut], status_code=status.HTTP_200_OK)
+@book_router.get(
+    "/",
+    response_model=List[BookOut],
+    status_code=status.HTTP_200_OK,
+    summary="Get all books",
+    description="Retrieve all books in the system.",
+    responses={500: PUBLIC_RESPONSES[500]}
+)
 async def get_books(session: AsyncSession = Depends(get_session)) -> List[BookOut]:
     """Get all books"""
     books = await book_service.get_all_books(session)
     return books
 
 
-@book_router.get("/my-books", response_model=List[BookOut], status_code=status.HTTP_200_OK)
+@book_router.get(
+    "/my-books",
+    response_model=List[BookOut],
+    status_code=status.HTTP_200_OK,
+    summary="Get my books",
+    description="Get all books owned by the current authenticated user.",
+    responses=AUTH_RESPONSES
+)
 async def get_my_books(
         session: AsyncSession = Depends(get_session),
         current_user: User = Depends(get_current_active_user)
@@ -32,18 +48,30 @@ async def get_my_books(
     return books
 
 
-@book_router.get("/{book_uuid}", response_model=BookOut, status_code=status.HTTP_200_OK)
+@book_router.get(
+    "/{book_uuid}",
+    response_model=BookOut,
+    status_code=status.HTTP_200_OK,
+    summary="Get book by UUID",
+    description="Get a single book by its UUID.",
+    responses=PUBLIC_RESPONSES
+)
 async def get_book(book_uuid: uuid.UUID, session: AsyncSession = Depends(get_session)) -> BookOut:
     """Get a single book by UUID"""
     book = await book_service.get_book(book_uuid, session)
     if not book:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail=f"Book {book_uuid} not found"
-        )
+        raise BookNotFoundException(book_uuid)
     return book
 
 
-@book_router.post("/", status_code=status.HTTP_201_CREATED, response_model=BookOut)
+@book_router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    response_model=BookOut,
+    summary="Create a book",
+    description="Create a new book. The book will be associated with the authenticated user.",
+    responses=CREATE_RESPONSES
+)
 async def create_book(
         book: BookCreate,
         session: AsyncSession = Depends(get_session),
@@ -54,7 +82,14 @@ async def create_book(
     return new_book
 
 
-@book_router.patch("/{book_uuid}", response_model=BookOut, status_code=status.HTTP_200_OK)
+@book_router.patch(
+    "/{book_uuid}",
+    response_model=BookOut,
+    status_code=status.HTTP_200_OK,
+    summary="Update a book",
+    description="Update a book by UUID. Only the owner or admin can update.",
+    responses=AUTH_RESPONSES
+)
 async def update_book(
         book_uuid: uuid.UUID,
         book_update_data: BookUpdate,
@@ -66,7 +101,13 @@ async def update_book(
     return updated_book
 
 
-@book_router.delete("/{book_uuid}", status_code=status.HTTP_204_NO_CONTENT)
+@book_router.delete(
+    "/{book_uuid}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete a book",
+    description="Delete a book by UUID. Only the owner or admin can delete.",
+    responses=AUTH_RESPONSES
+)
 async def delete_book(
         book_uuid: uuid.UUID,
         session: AsyncSession = Depends(get_session),

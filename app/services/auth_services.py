@@ -1,12 +1,23 @@
+import time
 import uuid
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import HTTPException, status
 from pydantic import EmailStr
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.exceptions import (
+    InvalidCredentialsException,
+    InactiveUserException,
+    DuplicateEmailException,
+    DuplicateUsernameException,
+    InvalidTokenException,
+    TokenExpiredException,
+    RedisUnavailableException,
+    UserNotFoundException,
+    ValidationException
+)
 from app.core.redis import (
     add_token_to_blacklist,
     is_token_blacklisted,
@@ -19,7 +30,7 @@ from app.core.security import (
     create_refresh_token,
     decode_token
 )
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.schemas.auth import Token, RegisterRequest
 from app.services.user_services import UserService
 
@@ -52,19 +63,12 @@ class AuthService:
         user = await self.authenticate_user(email, password, session)
 
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise InvalidCredentialsException()
 
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="User account is inactive"
-            )
+            raise InactiveUserException()
 
-        # Create tokens (now returns tuple of token and jti)
+        # Create tokens
         access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token, _ = create_access_token(
             data={"sub": str(user.uuid)},
@@ -82,35 +86,26 @@ class AuthService:
 
     async def register(self, user_data: RegisterRequest, session: AsyncSession) -> User:
         """Register a new user (always gets USER role)."""
-        from app.models.user import UserRole
-
         # Check if email already exists
         existing_email = await self.user_service.get_user_by_email(user_data.email, session)
         if existing_email:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
+            raise DuplicateEmailException(user_data.email)
 
         # Check if username already exists
         existing_username = await self.user_service.get_user_by_username(user_data.username, session)
         if existing_username:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username already taken"
-            )
+            raise DuplicateUsernameException(user_data.username)
 
         # Hash password and create user
         hashed_password = get_password_hash(user_data.password)
 
-        # Create user with USER role (public registration always gets USER role)
         new_user = User(
             username=user_data.username,
             email=user_data.email,
             first_name=user_data.first_name,
             last_name=user_data.last_name,
             password=hashed_password,
-            role=UserRole.USER,  # Force USER role for public registration
+            role=UserRole.USER,
             is_active=True
         )
 
@@ -121,28 +116,16 @@ class AuthService:
 
     @staticmethod
     async def logout(token: str) -> dict:
-        """
-        Logout by adding the current token to the blacklist.
-
-        Args:
-            token: The JWT access token to revoke
-
-        Returns:
-            Success message
-        """
+        """Logout by adding the current token to the blacklist."""
         try:
             payload = decode_token(token)
             jti = payload.get("jti")
             exp = payload.get("exp")
 
             if not jti:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Token does not contain a JTI"
-                )
+                raise ValidationException("Token does not contain a JTI")
 
             # Calculate remaining time until token expires
-            import time
             current_time = int(time.time())
             expires_in = max(exp - current_time, 0) if exp else 3600
 
@@ -150,55 +133,29 @@ class AuthService:
             success = await add_token_to_blacklist(jti, expires_in)
 
             if not success:
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Token revocation service is temporarily unavailable. Please try again later."
-                )
+                raise RedisUnavailableException()
 
             return {"message": "Successfully logged out"}
 
-        except HTTPException:
+        except (ValidationException, RedisUnavailableException):
             raise
         except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid token"
-            )
+            raise InvalidTokenException()
 
     @staticmethod
     async def logout_all_devices(user_uuid: str) -> dict:
-        """
-        Logout from all devices by blacklisting all tokens for a user.
-
-        Args:
-            user_uuid: The user's UUID
-
-        Returns:
-            Success message
-        """
-        # Blacklist all tokens for 7 days (max refresh token lifetime)
+        """Logout from all devices by blacklisting all tokens for a user."""
         expires_in = 7 * 24 * 60 * 60  # 7 days in seconds
 
         success = await blacklist_all_user_tokens(user_uuid, expires_in)
 
         if not success:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Token revocation service is temporarily unavailable. Please try again later."
-            )
+            raise RedisUnavailableException()
 
         return {"message": "Successfully logged out from all devices"}
 
     async def revoke_token(self, token: str) -> dict:
-        """
-        Revoke a specific token (admin functionality or self-revoke).
-
-        Args:
-            token: The JWT token to revoke
-
-        Returns:
-            Success message
-        """
+        """Revoke a specific token."""
         return await self.logout(token)
 
     async def refresh_access_token(
@@ -213,44 +170,28 @@ class AuthService:
             # Check token type
             token_type = payload.get("type")
             if token_type != "refresh":
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid refresh token"
-                )
+                raise InvalidTokenException()
 
             # Check if refresh token is blacklisted
             jti = payload.get("jti")
             if jti and await is_token_blacklisted(jti):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Refresh token has been revoked"
-                )
+                raise TokenExpiredException()
 
             user_uuid = payload.get("sub")
             if not user_uuid:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid token payload"
-                )
+                raise InvalidTokenException()
 
             # Verify user exists
             user = await self.user_service.get_user_by_uuid(uuid.UUID(user_uuid), session)
             if not user:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="User not found"
-                )
+                raise UserNotFoundException(user_uuid)
 
             if not user.is_active:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="User account is inactive"
-                )
+                raise InactiveUserException()
 
-            # Optionally: Revoke the old refresh token (rotation)
+            # Revoke the old refresh token (rotation)
             if jti:
                 exp = payload.get("exp")
-                import time
                 current_time = int(time.time())
                 expires_in = max(exp - current_time, 0) if exp else 7 * 24 * 60 * 60
                 await add_token_to_blacklist(jti, expires_in)
@@ -270,10 +211,7 @@ class AuthService:
                 refresh_token=new_refresh_token,
                 token_type="bearer"
             )
-        except HTTPException:
+        except (InvalidTokenException, TokenExpiredException, UserNotFoundException, InactiveUserException):
             raise
         except Exception:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid refresh token"
-            )
+            raise InvalidTokenException()

@@ -96,6 +96,84 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None) 
     return encoded_jwt, jti
 
 
+def create_verification_token(email: str) -> str:
+    """
+    Create a verification token for email verification.
+
+    Args:
+        email: User's email address
+
+    Returns:
+        Encoded JWT token
+    """
+    expire = datetime.now(timezone.utc) + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRE_HOURS)
+    to_encode = {
+        "sub": email,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "verification"
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def verify_verification_token(token: str) -> Optional[str]:
+    """
+    Verify and decode a verification token.
+
+    Args:
+        token: The verification token
+
+    Returns:
+        Email address if valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "verification":
+            return None
+        return payload.get("sub")
+    except InvalidTokenError:
+        return None
+
+
+def create_password_reset_token(email: str) -> str:
+    """
+    Create a password reset token.
+
+    Args:
+        email: User's email address
+
+    Returns:
+        Encoded JWT token
+    """
+    expire = datetime.now(timezone.utc) + timedelta(hours=1)  # 1 hour expiry
+    to_encode = {
+        "sub": email,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "type": "password_reset"
+    }
+    return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+
+
+def verify_password_reset_token(token: str) -> Optional[str]:
+    """
+    Verify and decode a password reset token.
+
+    Args:
+        token: The password reset token
+
+    Returns:
+        Email address if valid, None otherwise
+    """
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        if payload.get("type") != "password_reset":
+            return None
+        return payload.get("sub")
+    except InvalidTokenError:
+        return None
+
+
 def decode_token(token: str) -> dict:
     """Decode and verify a JWT token."""
     try:

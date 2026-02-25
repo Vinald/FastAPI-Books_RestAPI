@@ -54,6 +54,7 @@ class ShowUser(UserBase):
     uuid: uuid.UUID
     role: UserRole
     is_active: bool
+    is_verified: bool
     created_at: datetime
     updated_at: datetime
 

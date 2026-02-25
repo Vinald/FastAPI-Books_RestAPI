@@ -4,6 +4,7 @@ Tests for Authentication endpoints.
 import pytest
 from httpx import AsyncClient
 
+from app.core.security import create_verification_token, create_password_reset_token
 from app.models.user import User
 
 
@@ -44,7 +45,8 @@ class TestAuthRegister:
             }
         )
         assert response.status_code == 400
-        assert "Email already registered" in response.json()["detail"]
+        assert "email" in response.json()["detail"].lower()
+        assert "already exists" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     async def test_register_duplicate_username(self, client: AsyncClient, test_user: User):
@@ -60,7 +62,8 @@ class TestAuthRegister:
             }
         )
         assert response.status_code == 400
-        assert "Username already taken" in response.json()["detail"]
+        assert "username" in response.json()["detail"].lower()
+        assert "already exists" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     async def test_register_short_password(self, client: AsyncClient):
@@ -111,6 +114,19 @@ class TestAuthLogin:
         assert "access_token" in data
         assert "refresh_token" in data
         assert data["token_type"] == "bearer"
+
+    @pytest.mark.asyncio
+    async def test_login_unverified_email(self, client: AsyncClient, unverified_user: User):
+        """Test login with unverified email fails."""
+        response = await client.post(
+            "/api/v1.0/auth/login",
+            data={
+                "username": "unverified@example.com",
+                "password": "testpassword123"
+            }
+        )
+        assert response.status_code == 403
+        assert "verify your email" in response.json()["detail"].lower()
 
     @pytest.mark.asyncio
     async def test_login_wrong_password(self, client: AsyncClient, test_user: User):
@@ -212,3 +228,204 @@ class TestAuthLogoutAll:
         """Test logout-all without token fails."""
         response = await client.post("/api/v1.0/auth/logout-all")
         assert response.status_code == 401
+
+
+class TestEmailVerification:
+    """Tests for email verification endpoints."""
+
+    @pytest.mark.asyncio
+    async def test_verify_email_success(self, client: AsyncClient, unverified_user: User):
+        """Test successful email verification."""
+        # Create a valid verification token
+        verification_token = create_verification_token(unverified_user.email)
+
+        response = await client.post(
+            "/api/v1.0/auth/verify-email",
+            json={"token": verification_token}
+        )
+        assert response.status_code == 200
+        assert "verified successfully" in response.json()["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_verify_email_invalid_token(self, client: AsyncClient):
+        """Test email verification with invalid token fails."""
+        response = await client.post(
+            "/api/v1.0/auth/verify-email",
+            json={"token": "invalid-token"}
+        )
+        assert response.status_code == 400
+        assert "invalid" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_verify_email_already_verified(self, client: AsyncClient, test_user: User):
+        """Test email verification for already verified user fails."""
+        # test_user is already verified
+        verification_token = create_verification_token(test_user.email)
+
+        response = await client.post(
+            "/api/v1.0/auth/verify-email",
+            json={"token": verification_token}
+        )
+        assert response.status_code == 400
+        assert "already verified" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_verify_email_nonexistent_user(self, client: AsyncClient):
+        """Test email verification for non-existent email fails."""
+        verification_token = create_verification_token("nonexistent@example.com")
+
+        response = await client.post(
+            "/api/v1.0/auth/verify-email",
+            json={"token": verification_token}
+        )
+        assert response.status_code == 404
+
+
+class TestResendVerification:
+    """Tests for POST /auth/resend-verification"""
+
+    @pytest.mark.asyncio
+    async def test_resend_verification_success(self, client: AsyncClient, unverified_user: User):
+        """Test resend verification for unverified user."""
+        response = await client.post(
+            "/api/v1.0/auth/resend-verification",
+            json={"email": unverified_user.email}
+        )
+        # Response should be 200 or 503 depending on email service availability
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            assert "sent" in response.json()["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_resend_verification_already_verified(self, client: AsyncClient, test_user: User):
+        """Test resend verification for already verified user fails."""
+        response = await client.post(
+            "/api/v1.0/auth/resend-verification",
+            json={"email": test_user.email}
+        )
+        assert response.status_code == 400
+        assert "already verified" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_resend_verification_nonexistent_email(self, client: AsyncClient):
+        """Test resend verification for non-existent email (returns success for security)."""
+        response = await client.post(
+            "/api/v1.0/auth/resend-verification",
+            json={"email": "nonexistent@example.com"}
+        )
+        # Should return success to prevent email enumeration
+        assert response.status_code == 200
+        assert "sent" in response.json()["message"].lower()
+
+
+class TestForgotPassword:
+    """Tests for POST /auth/forgot-password"""
+
+    @pytest.mark.asyncio
+    async def test_forgot_password_success(self, client: AsyncClient, test_user: User):
+        """Test forgot password request."""
+        response = await client.post(
+            "/api/v1.0/auth/forgot-password",
+            json={"email": test_user.email}
+        )
+        # Response should be 200 or 503 depending on email service availability
+        assert response.status_code in [200, 503]
+        if response.status_code == 200:
+            assert "sent" in response.json()["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_forgot_password_nonexistent_email(self, client: AsyncClient):
+        """Test forgot password for non-existent email (returns success for security)."""
+        response = await client.post(
+            "/api/v1.0/auth/forgot-password",
+            json={"email": "nonexistent@example.com"}
+        )
+        # Should return success to prevent email enumeration
+        assert response.status_code == 200
+        assert "sent" in response.json()["message"].lower()
+
+
+class TestResetPassword:
+    """Tests for POST /auth/reset-password"""
+
+    @pytest.mark.asyncio
+    async def test_reset_password_success(self, client: AsyncClient, test_user: User):
+        """Test successful password reset."""
+        reset_token = create_password_reset_token(test_user.email)
+
+        response = await client.post(
+            "/api/v1.0/auth/reset-password",
+            json={
+                "token": reset_token,
+                "new_password": "newpassword123"
+            }
+        )
+        assert response.status_code == 200
+        assert "reset successfully" in response.json()["message"].lower()
+
+    @pytest.mark.asyncio
+    async def test_reset_password_invalid_token(self, client: AsyncClient):
+        """Test password reset with invalid token fails."""
+        response = await client.post(
+            "/api/v1.0/auth/reset-password",
+            json={
+                "token": "invalid-token",
+                "new_password": "newpassword123"
+            }
+        )
+        assert response.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_reset_password_short_password(self, client: AsyncClient, test_user: User):
+        """Test password reset with short password fails."""
+        reset_token = create_password_reset_token(test_user.email)
+
+        response = await client.post(
+            "/api/v1.0/auth/reset-password",
+            json={
+                "token": reset_token,
+                "new_password": "short"  # Too short
+            }
+        )
+        assert response.status_code == 422  # Validation error
+
+    @pytest.mark.asyncio
+    async def test_reset_password_nonexistent_user(self, client: AsyncClient):
+        """Test password reset for non-existent user fails."""
+        reset_token = create_password_reset_token("nonexistent@example.com")
+
+        response = await client.post(
+            "/api/v1.0/auth/reset-password",
+            json={
+                "token": reset_token,
+                "new_password": "newpassword123"
+            }
+        )
+        assert response.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_login_after_password_reset(self, client: AsyncClient, test_user: User):
+        """Test that user can login with new password after reset."""
+        reset_token = create_password_reset_token(test_user.email)
+        new_password = "brandnewpassword123"
+
+        # Reset password
+        reset_response = await client.post(
+            "/api/v1.0/auth/reset-password",
+            json={
+                "token": reset_token,
+                "new_password": new_password
+            }
+        )
+        assert reset_response.status_code == 200
+
+        # Login with new password
+        login_response = await client.post(
+            "/api/v1.0/auth/login",
+            data={
+                "username": test_user.email,
+                "password": new_password
+            }
+        )
+        assert login_response.status_code == 200
+        assert "access_token" in login_response.json()

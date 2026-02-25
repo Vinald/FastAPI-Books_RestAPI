@@ -115,6 +115,46 @@ class InvalidTokenException(UnauthorizedException):
         super().__init__(detail="Invalid or malformed token")
 
 
+class EmailNotVerifiedException(BookAPIException):
+    """Email not verified exception."""
+
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Please verify your email address before logging in"
+        )
+
+
+class InvalidVerificationTokenException(BookAPIException):
+    """Invalid or expired verification token."""
+
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification token"
+        )
+
+
+class EmailAlreadyVerifiedException(BookAPIException):
+    """Email already verified."""
+
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is already verified"
+        )
+
+
+class EmailSendingException(BookAPIException):
+    """Failed to send email."""
+
+    def __init__(self):
+        super().__init__(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to send email. Please try again later."
+        )
+
+
 class ForbiddenException(BookAPIException):
     """Access forbidden exception."""
 

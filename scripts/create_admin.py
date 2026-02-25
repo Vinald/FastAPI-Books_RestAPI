@@ -33,6 +33,9 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
+# Import other models to ensure relationships are properly configured
+from app.models.book import Book  # noqa: F401
+from app.models.review import Review  # noqa: F401
 
 
 async def create_admin_user(
@@ -56,8 +59,9 @@ async def create_admin_user(
                 upgrade = input(f"   Current role: {existing_user.role.value}. Upgrade to admin? (y/n): ")
                 if upgrade.lower() == 'y':
                     existing_user.role = UserRole.ADMIN
+                    existing_user.is_verified = True  # Admins are pre-verified
                     await session.commit()
-                    print(f"User '{email}' upgraded to admin!")
+                    print(f"User '{email}' upgraded to admin and verified!")
             else:
                 print(f"   User is already an admin.")
             return
@@ -76,7 +80,8 @@ async def create_admin_user(
             first_name=first_name,
             last_name=last_name,
             role=UserRole.ADMIN,
-            is_active=True
+            is_active=True,
+            is_verified=True  # Admins are pre-verified
         )
 
         session.add(admin_user)

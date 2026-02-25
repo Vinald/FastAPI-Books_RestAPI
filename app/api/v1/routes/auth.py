@@ -6,7 +6,16 @@ from app.core.database import get_session
 from app.core.responses import CREATE_RESPONSES, COMMON_RESPONSES
 from app.core.security import get_current_active_user, oauth2_scheme
 from app.models.user import User
-from app.schemas.auth import Token, RegisterRequest, RefreshTokenRequest, MessageResponse
+from app.schemas.auth import (
+    Token,
+    RegisterRequest,
+    RefreshTokenRequest,
+    MessageResponse,
+    VerifyEmailRequest,
+    ResendVerificationRequest,
+    ForgotPasswordRequest,
+    ResetPasswordRequest
+)
 from app.schemas.user import ShowUser
 from app.services.auth_services import AuthService
 
@@ -116,4 +125,118 @@ async def logout_all_devices(
 ) -> MessageResponse:
     """Logout from all devices by invalidating all tokens."""
     result = await auth_service.logout_all_devices(str(current_user.uuid))
+    return MessageResponse(**result)
+
+
+# =============================================================================
+# Email Verification Endpoints
+# =============================================================================
+
+@auth_router.post(
+    "/verify-email",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Verify email address",
+    description="Verify user's email address using the verification token sent to their email.",
+    responses={
+        400: {"description": "Invalid or expired verification token, or email already verified"},
+        404: {"description": "User not found"},
+        500: COMMON_RESPONSES[500]
+    }
+)
+async def verify_email(
+        request: VerifyEmailRequest,
+        session: AsyncSession = Depends(get_session)
+) -> MessageResponse:
+    """
+    Verify email address with the token received via email.
+
+    The verification token is sent to the user's email after registration.
+    This endpoint validates the token and marks the user's email as verified.
+    """
+    result = await auth_service.verify_email(request.token, session)
+    return MessageResponse(**result)
+
+
+@auth_router.post(
+    "/resend-verification",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Resend verification email",
+    description="Resend the email verification link. Use this if the original email was not received.",
+    responses={
+        400: {"description": "Email already verified"},
+        503: {"description": "Email service unavailable"},
+        500: COMMON_RESPONSES[500]
+    }
+)
+async def resend_verification_email(
+        request: ResendVerificationRequest,
+        session: AsyncSession = Depends(get_session)
+) -> MessageResponse:
+    """
+    Resend the verification email to the user.
+
+    For security reasons, this endpoint returns a success message regardless
+    of whether the email exists in the system.
+    """
+    result = await auth_service.resend_verification_email(request.email, session)
+    return MessageResponse(**result)
+
+
+# =============================================================================
+# Password Reset Endpoints
+# =============================================================================
+
+@auth_router.post(
+    "/forgot-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Request password reset",
+    description="Send a password reset link to the user's email address.",
+    responses={
+        503: {"description": "Email service unavailable"},
+        500: COMMON_RESPONSES[500]
+    }
+)
+async def forgot_password(
+        request: ForgotPasswordRequest,
+        session: AsyncSession = Depends(get_session)
+) -> MessageResponse:
+    """
+    Request a password reset email.
+
+    For security reasons, this endpoint returns a success message regardless
+    of whether the email exists in the system.
+    """
+    result = await auth_service.forgot_password(request.email, session)
+    return MessageResponse(**result)
+
+
+@auth_router.post(
+    "/reset-password",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Reset password",
+    description="Reset the user's password using the token received via email.",
+    responses={
+        400: {"description": "Invalid or expired reset token"},
+        404: {"description": "User not found"},
+        500: COMMON_RESPONSES[500]
+    }
+)
+async def reset_password(
+        request: ResetPasswordRequest,
+        session: AsyncSession = Depends(get_session)
+) -> MessageResponse:
+    """
+    Reset password using the token received via email.
+
+    The reset token is valid for 1 hour after it was generated.
+    """
+    result = await auth_service.reset_password(
+        token=request.token,
+        new_password=request.new_password,
+        session=session
+    )
     return MessageResponse(**result)

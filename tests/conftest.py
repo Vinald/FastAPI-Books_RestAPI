@@ -85,7 +85,8 @@ async def test_user(db_session: AsyncSession) -> User:
         last_name="User",
         password=get_password_hash("testpassword123"),
         role=UserRole.USER,
-        is_active=True
+        is_active=True,
+        is_verified=True  # User must be verified to login
     )
     db_session.add(user)
     await db_session.commit()
@@ -103,7 +104,8 @@ async def test_admin(db_session: AsyncSession) -> User:
         last_name="User",
         password=get_password_hash("adminpassword123"),
         role=UserRole.ADMIN,
-        is_active=True
+        is_active=True,
+        is_verified=True  # User must be verified to login
     )
     db_session.add(admin)
     await db_session.commit()
@@ -121,12 +123,32 @@ async def test_moderator(db_session: AsyncSession) -> User:
         last_name="User",
         password=get_password_hash("modpassword123"),
         role=UserRole.MODERATOR,
-        is_active=True
+        is_active=True,
+        is_verified=True  # User must be verified to login
     )
     db_session.add(moderator)
     await db_session.commit()
     await db_session.refresh(moderator)
     return moderator
+
+
+@pytest_asyncio.fixture
+async def unverified_user(db_session: AsyncSession) -> User:
+    """Create an unverified test user for email verification tests."""
+    user = User(
+        username="unverifieduser",
+        email="unverified@example.com",
+        first_name="Unverified",
+        last_name="User",
+        password=get_password_hash("testpassword123"),
+        role=UserRole.USER,
+        is_active=True,
+        is_verified=False  # User is not verified
+    )
+    db_session.add(user)
+    await db_session.commit()
+    await db_session.refresh(user)
+    return user
 
 
 @pytest_asyncio.fixture

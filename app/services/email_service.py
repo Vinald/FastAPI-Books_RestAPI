@@ -108,7 +108,8 @@ class EmailService:
         Returns:
             True if sent successfully
         """
-        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={verification_token}"
+        # Use API endpoint for direct verification
+        verification_url = f"{settings.API_BASE_URL}/api/v1.0/auth/verify-email?token={verification_token}"
 
         html_body = f"""
         <!DOCTYPE html>

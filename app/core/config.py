@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Verification settings
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
     FRONTEND_URL: str = "http://localhost:3000"
+    API_BASE_URL: str = "http://localhost:8000"  # Base URL for API verification links
 
     model_config = SettingsConfigDict(
         env_file=str(BASE_DIR / ".env"),

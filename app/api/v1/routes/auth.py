@@ -132,6 +132,32 @@ async def logout_all_devices(
 # Email Verification Endpoints
 # =============================================================================
 
+@auth_router.get(
+    "/verify-email",
+    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Verify email address via link",
+    description="Verify user's email address by clicking the verification link sent to their email.",
+    responses={
+        400: {"description": "Invalid or expired verification token, or email already verified"},
+        404: {"description": "User not found"},
+        500: COMMON_RESPONSES[500]
+    }
+)
+async def verify_email_via_link(
+        token: str,
+        session: AsyncSession = Depends(get_session)
+) -> MessageResponse:
+    """
+    Verify email address by clicking the link received via email.
+
+    This GET endpoint allows users to verify their email by simply clicking
+    the verification link in their email.
+    """
+    result = await auth_service.verify_email(token, session)
+    return MessageResponse(**result)
+
+
 @auth_router.post(
     "/verify-email",
     response_model=MessageResponse,

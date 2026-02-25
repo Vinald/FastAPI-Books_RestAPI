@@ -33,7 +33,6 @@ from sqlalchemy import select
 from app.core.database import AsyncSessionLocal
 from app.core.security import get_password_hash
 from app.models.user import User, UserRole
-# Import other models to ensure relationships are properly configured
 from app.models.book import Book  # noqa: F401
 from app.models.review import Review  # noqa: F401
 

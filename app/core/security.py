@@ -250,6 +250,45 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_current_user_optional(
+        token: str,
+        session: AsyncSession
+) -> Optional[User]:
+    """
+    Get the current user from token without raising exceptions.
+    Returns None if token is invalid or user not found.
+    Used for GraphQL context where auth is optional.
+    """
+    from app.core.redis import is_token_blacklisted, is_user_token_blacklisted
+
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        user_uuid: str = payload.get("sub")
+        jti: str = payload.get("jti")
+        iat: int = payload.get("iat")
+
+        if user_uuid is None:
+            return None
+
+        # Check if token is blacklisted
+        if jti and await is_token_blacklisted(jti):
+            return None
+
+        # Check if all user tokens are blacklisted
+        if iat and await is_user_token_blacklisted(user_uuid, iat):
+            return None
+
+        # Get user from database
+        statement = select(User).where(User.uuid == uuid.UUID(user_uuid))
+        result = await session.execute(statement)
+        user = result.scalars().first()
+
+        return user
+
+    except (InvalidTokenError, Exception):
+        return None
+
+
 # =============================================================================
 # Role-Based Access Control (RBAC) Dependencies
 # =============================================================================

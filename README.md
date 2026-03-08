@@ -9,6 +9,8 @@ A modern, fully-featured RESTful API for book management built with **FastAPI**,
 
 ## ✨ Features
 
+### Core Features
+
 - 🔐 **JWT Authentication** with access & refresh tokens
 - 🚪 **Token Revocation** using Redis blacklist
 - 👤 **User Management** (register, login, profile, password change)
@@ -21,6 +23,15 @@ A modern, fully-featured RESTful API for book management built with **FastAPI**,
 - 🛡️ **Security Best Practices** (password hashing, secure tokens)
 - 🔢 **API Versioning** with multiple API versions (V1 & V2)
 - 📄 **Pagination Support** in V2 API with search and filtering
+
+### Advanced Features
+
+- 🔒 **OAuth2 Social Login** - Google and GitHub authentication
+- 📁 **File Upload/Download** - Image and document handling with streaming
+- 🔌 **WebSockets** - Real-time communication for notifications and chat
+- ⚡ **Rate Limiting** - Request throttling with Redis backend
+- 🚀 **Background Tasks** - Async task processing with Celery
+- 📊 **GraphQL** - Alternative GraphQL API (Strawberry integration)
 
 ## 🏗️ Project Structure
 
@@ -253,13 +264,251 @@ The API implements three user roles with different permission levels:
 └─────────────────────────────────────────────────────────────┘
 ```
 
+## 🔒 OAuth2 Social Login
+
+The API supports social login with Google and GitHub.
+
+### Available Endpoints
+
+| Method | Endpoint                             | Description                     |
+|--------|--------------------------------------|---------------------------------|
+| GET    | `/api/v1/oauth/providers`            | List configured OAuth providers |
+| GET    | `/api/v1/oauth/{provider}/authorize` | Start OAuth flow                |
+| GET    | `/api/v1/oauth/{provider}/callback`  | Handle OAuth callback           |
+
+### Configuration
+
+Add these to your `.env` file:
+
+```env
+# Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+
+# GitHub OAuth
+GITHUB_CLIENT_ID=your-github-client-id
+GITHUB_CLIENT_SECRET=your-github-client-secret
+
+OAUTH_REDIRECT_BASE_URL=http://localhost:8000
+```
+
+### OAuth Flow
+
+1. User visits `/api/v1/oauth/google/authorize` or `/api/v1/oauth/github/authorize`
+2. User is redirected to the OAuth provider for authentication
+3. After authentication, user is redirected back to the callback URL
+4. API creates/logs in user and returns JWT tokens
+
+## 📁 File Upload/Download
+
+The API supports file uploads with streaming downloads.
+
+### Available Endpoints
+
+| Method | Endpoint                                    | Description           |
+|--------|---------------------------------------------|-----------------------|
+| POST   | `/api/v1/files/upload`                      | Upload a single file  |
+| POST   | `/api/v1/files/upload/multiple`             | Upload multiple files |
+| GET    | `/api/v1/files/my-files`                    | List user's files     |
+| GET    | `/api/v1/files/{user_id}/{filename}`        | Download a file       |
+| GET    | `/api/v1/files/{user_id}/{filename}/stream` | Stream a file         |
+| DELETE | `/api/v1/files/{filename}`                  | Delete a file         |
+
+### File Upload Example
+
+```bash
+curl -X POST "http://localhost:8000/api/v1/files/upload" \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@/path/to/image.jpg" \
+  -F "category=image"
+```
+
+### Supported File Types
+
+- **Images**: `.jpg`, `.jpeg`, `.png`, `.gif`, `.webp`
+- **Documents**: `.pdf`, `.doc`, `.docx`, `.txt`, `.md`
+- **Max Size**: 10MB per file
+
+## 🔌 WebSockets
+
+Real-time communication via WebSocket connections.
+
+### Connection
+
+```javascript
+const ws = new WebSocket('ws://localhost:8000/ws/connect?token=<jwt_token>');
+
+ws.onmessage = (event) => {
+  const message = JSON.parse(event.data);
+  console.log('Received:', message);
+};
+```
+
+### Message Actions
+
+| Action             | Description                  |
+|--------------------|------------------------------|
+| `ping`             | Health check / keep alive    |
+| `join_room`        | Join a chat room             |
+| `leave_room`       | Leave a chat room            |
+| `send_message`     | Send message to room/all     |
+| `typing`           | Send typing indicator        |
+| `get_online_users` | Get list of online users     |
+| `get_room_users`   | Get users in a specific room |
+
+### Example Messages
+
+```json
+// Join a room
+{"action": "join_room", "room_id": "book-discussion-123"}
+
+// Send a message to a room
+{"action": "send_message", "room_id": "book-discussion-123", "data": {"content": "Hello!"}}
+
+// Send a broadcast message
+{"action": "send_message", "data": {"content": "Hello everyone!"}}
+```
+
+## ⚡ Rate Limiting
+
+API endpoints are protected with rate limiting using Redis.
+
+### Default Limits
+
+| Endpoint Type | Limit     |
+|---------------|-----------|
+| Auth (login)  | 5/minute  |
+| File upload   | 10/minute |
+| General API   | 60/minute |
+| Search        | 30/minute |
+
+### Rate Limit Headers
+
+When rate limited, responses include:
+
+- `X-RateLimit-Limit`: Maximum requests allowed
+- `X-RateLimit-Remaining`: Remaining requests
+- `Retry-After`: Seconds until limit resets
+
+### Rate Limit Response
+
+```json
+{
+  "detail": "Too many requests",
+  "error": "rate_limit_exceeded",
+  "retry_after": "60",
+  "message": "Rate limit exceeded. Please try again later."
+}
+```
+
+## 🚀 Background Tasks (Celery)
+
+The API uses Celery for background task processing.
+
+### Starting Celery Worker
+
+```bash
+# Start worker
+celery -A app.core.celery_app worker --loglevel=info
+
+# Start beat scheduler (for periodic tasks)
+celery -A app.core.celery_app beat --loglevel=info
+```
+
+### Available Tasks
+
+| Task                     | Description                      |
+|--------------------------|----------------------------------|
+| `send_email_task`        | Send emails asynchronously       |
+| `process_file_task`      | Process uploaded files           |
+| `cleanup_expired_tokens` | Clean up expired tokens (hourly) |
+| `send_daily_digest`      | Send daily digest (daily)        |
+| `send_notification_task` | Send user notifications          |
+| `generate_report_task`   | Generate reports asynchronously  |
+
+### Configuration
+
+```env
+CELERY_BROKER_URL=redis://localhost:6379/2
+CELERY_RESULT_BACKEND=redis://localhost:6379/3
+```
+
+## 📊 GraphQL API
+
+An alternative GraphQL endpoint is available (when Strawberry is compatible).
+
+### Endpoint
+
+- GraphQL: `http://localhost:8000/graphql`
+- GraphQL Playground: `http://localhost:8000/graphql`
+
+### Example Queries
+
+```graphql
+# Get paginated books
+query {
+  books(page: 1, pageSize: 10, search: "Python") {
+    items {
+      uuid
+      title
+      author
+    }
+    total
+    totalPages
+    hasNext
+  }
+}
+
+# Get book with reviews
+query {
+  bookWithReviews(uuid: "book-uuid") {
+    book {
+      title
+      author
+    }
+    reviews {
+      content
+      rating
+      reviewer {
+        username
+      }
+    }
+    averageRating
+    reviewCount
+  }
+}
+```
+
+### Example Mutations
+
+```graphql
+# Create a book (requires auth)
+mutation {
+  createBook(input: {
+    title: "FastAPI Guide"
+    author: "John Doe"
+    pages: 300
+  }) {
+    success
+    message
+    book {
+      uuid
+      title
+    }
+  }
+}
+```
+
 ### Using Role-Based Dependencies
 
 ```python
 from app.core.security import (
     get_admin_user,
     get_moderator_user,
-    RoleChecker
+    RoleChecker,
+    require_admin,
+    require_moderator,
+    check_resource_ownership_or_admin
 )
 from app.models.user import UserRole
 
@@ -274,6 +523,140 @@ async def admin_endpoint(user: User = Depends(get_admin_user)):
 @router.get("/mod-or-admin")
 async def mod_endpoint(user: User = Depends(RoleChecker([UserRole.MODERATOR, UserRole.ADMIN]))):
     ...
+
+
+# Method 3: Use pre-configured role checkers
+@router.get("/admin-only-v2")
+async def admin_v2(user: User = Depends(require_admin)):
+    ...
+
+
+# Method 4: Check resource ownership
+@router.patch("/books/{book_id}")
+async def update_book(book_id: int, current_user: User = Depends(get_current_active_user)):
+    book = await get_book(book_id)
+    check_resource_ownership_or_admin(book.user_id, current_user)
+    ...
+```
+
+## 🔒 Security Module (`app/core/security.py`)
+
+The security module provides comprehensive authentication and authorization utilities.
+
+### Password Hashing
+
+```python
+from app.core.security import get_password_hash, verify_password
+
+# Hash a password
+hashed = get_password_hash("my_password")
+
+# Verify a password
+is_valid = verify_password("my_password", hashed)
+```
+
+### Token Creation Functions
+
+| Function                             | Description                        | Expiration                |
+|--------------------------------------|------------------------------------|---------------------------|
+| `create_access_token(data)`          | Creates JWT access token with JTI  | 30 minutes (configurable) |
+| `create_refresh_token(data)`         | Creates JWT refresh token with JTI | 7 days                    |
+| `create_verification_token(email)`   | Creates email verification token   | 24 hours (configurable)   |
+| `create_password_reset_token(email)` | Creates password reset token       | 1 hour                    |
+
+### Token Verification Functions
+
+| Function                             | Description                        | Returns       |
+|--------------------------------------|------------------------------------|---------------|
+| `verify_verification_token(token)`   | Validates email verification token | Email or None |
+| `verify_password_reset_token(token)` | Validates password reset token     | Email or None |
+| `decode_token(token)`                | Decodes and validates any JWT      | Payload dict  |
+
+### Authentication Dependencies
+
+| Dependency                  | Description                      | Use Case              |
+|-----------------------------|----------------------------------|-----------------------|
+| `get_current_user`          | Gets user from JWT token         | Basic authentication  |
+| `get_current_active_user`   | Gets active user only            | Protected endpoints   |
+| `get_current_user_optional` | Gets user without raising errors | GraphQL/Optional auth |
+| `get_admin_user`            | Requires admin role              | Admin-only endpoints  |
+| `get_moderator_user`        | Requires moderator or admin      | Moderator endpoints   |
+
+### Pre-configured Role Checkers
+
+```python
+from app.core.security import require_admin, require_moderator, require_user
+
+# Use as dependencies
+@router.get("/admin")
+async def admin_only(user: User = Depends(require_admin)):
+    pass
+
+@router.get("/moderator")
+async def mod_only(user: User = Depends(require_moderator)):
+    pass
+
+@router.get("/user")
+async def user_only(user: User = Depends(require_user)):
+    pass
+```
+
+### Custom Role Checker
+
+```python
+from app.core.security import RoleChecker
+from app.models.user import UserRole
+
+# Create custom role checker
+custom_checker = RoleChecker([UserRole.ADMIN, UserRole.MODERATOR])
+
+
+@router.get("/custom")
+async def custom_endpoint(user: User = Depends(custom_checker)):
+    pass
+```
+
+### Resource Ownership Check
+
+```python
+from app.core.security import check_resource_ownership_or_admin
+
+
+@router.delete("/books/{book_id}")
+async def delete_book(
+        book_id: int,
+        current_user: User = Depends(get_current_active_user)
+):
+    book = await get_book(book_id)
+    # Raises 403 if user doesn't own the book and isn't admin
+    check_resource_ownership_or_admin(book.user_id, current_user)
+    await delete_book(book_id)
+```
+
+### JWT Token Structure
+
+**Access Token Claims:**
+
+```json
+{
+  "sub": "user-uuid",
+  "exp": 1709912400,
+  "iat": 1709910600,
+  "jti": "unique-token-id",
+  "type": "access"
+}
+```
+
+**Refresh Token Claims:**
+
+```json
+{
+  "sub": "user-uuid",
+  "exp": 1710515400,
+  "iat": 1709910600,
+  "jti": "unique-token-id",
+  "type": "refresh"
+}
 ```
 
 ## 🔐 Authentication Flow
@@ -298,6 +681,9 @@ async def mod_endpoint(user: User = Depends(RoleChecker([UserRole.MODERATOR, Use
 │                                                              │
 │  5. Logout: POST /auth/logout                                │
 │     └── Token is blacklisted in Redis                        │
+│                                                              │
+│  6. Logout All Devices: POST /auth/logout-all                │
+│     └── All user tokens invalidated via timestamp            │
 │                                                              │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -376,14 +762,28 @@ docker-compose up --build
 
 ## 📝 Environment Variables
 
-| Variable                      | Description                  | Default     |
-|-------------------------------|------------------------------|-------------|
-| `DATABASE_URL`                | PostgreSQL connection string | Required    |
-| `SECRET_KEY`                  | JWT signing key              | Required    |
-| `ALGORITHM`                   | JWT algorithm                | `HS256`     |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime        | `30`        |
-| `REDIS_HOST`                  | Redis server host            | `localhost` |
-| `REDIS_PORT`                  | Redis server port            | `6379`      |
+| Variable                      | Description                  | Default                 |
+|-------------------------------|------------------------------|-------------------------|
+| `DATABASE_URL`                | PostgreSQL connection string | Required                |
+| `SECRET_KEY`                  | JWT signing key              | Required                |
+| `ALGORITHM`                   | JWT algorithm                | `HS256`                 |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | Access token lifetime        | `30`                    |
+| `REDIS_HOST`                  | Redis server host            | `localhost`             |
+| `REDIS_PORT`                  | Redis server port            | `6379`                  |
+| `MAIL_USERNAME`               | Email username               | -                       |
+| `MAIL_PASSWORD`               | Email password               | -                       |
+| `MAIL_FROM`                   | Sender email address         | -                       |
+| `MAIL_PORT`                   | SMTP port                    | `587`                   |
+| `MAIL_SERVER`                 | SMTP server                  | -                       |
+| `FRONTEND_URL`                | Frontend URL for links       | `http://localhost:3000` |
+| `GOOGLE_CLIENT_ID`            | Google OAuth client ID       | -                       |
+| `GOOGLE_CLIENT_SECRET`        | Google OAuth client secret   | -                       |
+| `GITHUB_CLIENT_ID`            | GitHub OAuth client ID       | -                       |
+| `GITHUB_CLIENT_SECRET`        | GitHub OAuth client secret   | -                       |
+| `OAUTH_REDIRECT_BASE_URL`     | OAuth redirect base URL      | `http://localhost:8000` |
+| `MAX_UPLOAD_SIZE_MB`          | Max file upload size         | `10`                    |
+| `CELERY_BROKER_URL`           | Celery broker URL            | -                       |
+| `CELERY_RESULT_BACKEND`       | Celery result backend        | -                       |
 
 ## 🛠️ Tech Stack
 

@@ -123,35 +123,36 @@ app.include_router(ws_router)  # WebSocket routes
 app.include_router(file_router, prefix=API_V1_PREFIX)  # File routes
 app.include_router(oauth_router, prefix=API_V1_PREFIX)  # OAuth routes
 
+# Setup GraphQL (if available)
+if GRAPHQL_AVAILABLE:
+    async def get_context(request: Request):
+        """Get GraphQL context with database session and user."""
+        from app.core.database import get_session
+        from app.core.security import get_current_user_optional
 
-# Setup GraphQL
-async def get_context(request: Request):
-    """Get GraphQL context with database session and user."""
-    from app.core.database import get_session
-    from app.core.security import get_current_user_optional
+        # Get database session
+        session_gen = get_session()
+        session = await session_gen.__anext__()
 
-    # Get database session
-    session_gen = get_session()
-    session = await session_gen.__anext__()
+        # Try to get current user from token
+        user = None
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            try:
+                user = await get_current_user_optional(token, session)
+            except Exception:
+                pass
 
-    # Try to get current user from token
-    user = None
-    auth_header = request.headers.get("Authorization")
-    if auth_header and auth_header.startswith("Bearer "):
-        token = auth_header.split(" ")[1]
-        try:
-            user = await get_current_user_optional(token, session)
-        except Exception:
-            pass
-
-    return {"session": session, "user": user, "request": request}
+        return {"session": session, "user": user, "request": request}
 
 
-# Import GraphQL schema
-from app.graphql.schema import schema
+    # Import GraphQL schema
+    from app.graphql.schema import schema
 
-graphql_app = GraphQLRouter(schema, context_getter=get_context)
-app.include_router(graphql_app, prefix="/graphql")
+    graphql_app = GraphQLRouter(schema, context_getter=get_context)
+    app.include_router(graphql_app, prefix="/graphql")
+    logger.info("GraphQL endpoint enabled at /graphql")
 
 # Mount static files for uploads
 uploads_dir = "uploads"

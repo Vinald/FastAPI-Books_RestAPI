@@ -6,7 +6,7 @@ Upload, download, and manage files.
 import mimetypes
 from typing import List
 
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, BackgroundTasks, Query
+from fastapi import APIRouter, Depends, UploadFile, File, HTTPException, status, BackgroundTasks, Query, Request
 from fastapi.responses import StreamingResponse, FileResponse
 
 from app.core.rate_limit import limiter
@@ -32,6 +32,7 @@ file_router = APIRouter(
 )
 @limiter.limit("10/minute")
 async def upload_file(
+        request: Request,
         file: UploadFile = File(..., description="File to upload"),
         category: str = Query(default="image", description="File category: image, document, book_cover"),
         background_tasks: BackgroundTasks = None,
@@ -73,6 +74,7 @@ async def upload_file(
 )
 @limiter.limit("5/minute")
 async def upload_multiple_files(
+        request: Request,
         files: List[UploadFile] = File(..., description="Files to upload (max 5)"),
         category: str = Query(default="image", description="File category"),
         current_user: User = Depends(get_current_active_user)

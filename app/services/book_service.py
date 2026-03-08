@@ -1,8 +1,8 @@
 import uuid
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, asc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import (
@@ -24,12 +24,81 @@ class BookService:
         return list(books)
 
     @staticmethod
+    async def get_all_books_paginated(
+            session: AsyncSession,
+            page: int = 1,
+            page_size: int = 10,
+            search: Optional[str] = None,
+            sort_by: Optional[str] = "created_at",
+            sort_order: str = "desc"
+    ) -> Tuple[List[Book], int]:
+        """Get all books with pagination, search, and sorting."""
+        # Base query
+        query = select(Book)
+        count_query = select(func.count(Book.id))
+
+        # Apply search filter
+        if search:
+            search_filter = or_(
+                Book.title.ilike(f"%{search}%"),
+                Book.author.ilike(f"%{search}%")
+            )
+            query = query.where(search_filter)
+            count_query = count_query.where(search_filter)
+
+        # Get total count
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Apply sorting
+        sort_column = getattr(Book, sort_by, Book.created_at)
+        if sort_order == "desc":
+            query = query.order_by(desc(sort_column))
+        else:
+            query = query.order_by(asc(sort_column))
+
+        # Apply pagination
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+
+        result = await session.execute(query)
+        books = result.scalars().all()
+
+        return list(books), total
+
+    @staticmethod
     async def get_user_books(user_id: int, session: AsyncSession) -> List[Book]:
         """Get all books owned by a specific user."""
         statement = select(Book).where(Book.user_id == user_id).order_by(desc(Book.created_at))
         result = await session.execute(statement)
         books = result.scalars().all()
         return list(books)
+
+    @staticmethod
+    async def get_user_books_paginated(
+            user_id: int,
+            session: AsyncSession,
+            page: int = 1,
+            page_size: int = 10
+    ) -> Tuple[List[Book], int]:
+        """Get all books owned by a specific user with pagination."""
+        # Base query
+        query = select(Book).where(Book.user_id == user_id)
+        count_query = select(func.count(Book.id)).where(Book.user_id == user_id)
+
+        # Get total count
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Apply sorting and pagination
+        query = query.order_by(desc(Book.created_at))
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+
+        result = await session.execute(query)
+        books = result.scalars().all()
+
+        return list(books), total
 
     @staticmethod
     async def get_book(book_uuid: uuid.UUID, session: AsyncSession) -> Optional[Book]:

@@ -13,10 +13,14 @@ A modern, fully-featured RESTful API for book management built with **FastAPI**,
 - 🚪 **Token Revocation** using Redis blacklist
 - 👤 **User Management** (register, login, profile, password change)
 - 📖 **Book CRUD Operations** with user ownership
+- ⭐ **Review System** with ratings and user reviews
+- 📧 **Email Verification** with password reset functionality
 - 🔄 **Async/Await** throughout the application
 - 📊 **Database Migrations** with Alembic
 - 📝 **Auto-generated API Documentation** (Swagger UI & ReDoc)
 - 🛡️ **Security Best Practices** (password hashing, secure tokens)
+- 🔢 **API Versioning** with multiple API versions (V1 & V2)
+- 📄 **Pagination Support** in V2 API with search and filtering
 
 ## 🏗️ Project Structure
 
@@ -27,11 +31,20 @@ FastAPI-Books_RestAPI/
 │   └── env.py                  # Alembic configuration
 ├── app/
 │   ├── api/
-│   │   └── v1/
+│   │   ├── v1/                 # API Version 1 (original)
+│   │   │   └── routes/
+│   │   │       ├── auth.py     # Authentication endpoints
+│   │   │       ├── book.py     # Book CRUD endpoints
+│   │   │       ├── user.py     # User management endpoints
+│   │   │       ├── admin.py    # Admin endpoints
+│   │   │       └── review.py   # Review endpoints
+│   │   └── v2/                 # API Version 2 (with pagination)
 │   │       └── routes/
 │   │           ├── auth.py     # Authentication endpoints
-│   │           ├── book.py     # Book CRUD endpoints
-│   │           └── user.py     # User management endpoints
+│   │           ├── book.py     # Book CRUD with pagination
+│   │           ├── user.py     # User management with pagination
+│   │           ├── admin.py    # Admin endpoints
+│   │           └── review.py   # Review endpoints with pagination
 │   ├── core/
 │   │   ├── config.py           # Application settings
 │   │   ├── database.py         # Database connection
@@ -39,15 +52,19 @@ FastAPI-Books_RestAPI/
 │   │   └── security.py         # JWT & password utilities
 │   ├── models/
 │   │   ├── book.py             # Book SQLAlchemy model
-│   │   └── user.py             # User SQLAlchemy model
+│   │   ├── user.py             # User SQLAlchemy model
+│   │   └── review.py           # Review SQLAlchemy model
 │   ├── schemas/
 │   │   ├── auth.py             # Authentication Pydantic schemas
 │   │   ├── book.py             # Book Pydantic schemas
-│   │   └── user.py             # User Pydantic schemas
+│   │   ├── user.py             # User Pydantic schemas
+│   │   ├── review.py           # Review Pydantic schemas
+│   │   └── pagination.py       # Pagination Pydantic schemas
 │   ├── services/
 │   │   ├── auth_services.py    # Authentication business logic
 │   │   ├── book_service.py     # Book business logic
-│   │   └── user_services.py    # User business logic
+│   │   ├── user_services.py    # User business logic
+│   │   └── review_service.py   # Review business logic
 │   └── main.py                 # FastAPI application entry point
 ├── .env                        # Environment variables (not in repo)
 ├── .env.example                # Example environment variables
@@ -116,7 +133,42 @@ FastAPI-Books_RestAPI/
 
 ## 📖 API Endpoints
 
-### Authentication (`/api/v1.0/auth`)
+### API Versioning
+
+This API supports multiple versions using URL path versioning:
+
+| Version | Prefix    | Status | Description                                    |
+|---------|-----------|--------|------------------------------------------------|
+| V1      | `/api/v1` | Stable | Original API with basic CRUD functionality     |
+| V2      | `/api/v2` | Stable | Enhanced API with pagination, search & sorting |
+
+#### V2 Pagination Features
+
+V2 endpoints that return lists include pagination support:
+
+```json
+{
+  "items": [
+    ...
+  ],
+  "total": 100,
+  "page": 1,
+  "page_size": 10,
+  "total_pages": 10,
+  "has_next": true,
+  "has_previous": false
+}
+```
+
+**Query Parameters:**
+
+- `page` (default: 1) - Page number (1-indexed)
+- `page_size` (default: 10, max: 100) - Items per page
+- `search` - Search query (searches in title, author, username, email, etc.)
+- `sort_by` - Field to sort by
+- `sort_order` - Sort direction (`asc` or `desc`)
+
+### Authentication (`/api/v1/auth` or `/api/v2/auth`)
 
 | Method | Endpoint      | Description                   | Auth Required |
 |--------|---------------|-------------------------------|---------------|
@@ -126,7 +178,7 @@ FastAPI-Books_RestAPI/
 | POST   | `/logout`     | Logout (revoke current token) | ✅             |
 | POST   | `/logout-all` | Logout from all devices       | ✅             |
 
-### Users (`/api/v1.0/users`)
+### Users (`/api/v1/users` or `/api/v2/users`)
 
 | Method | Endpoint           | Description              | Auth Required | Role Required |
 |--------|--------------------|--------------------------|---------------|---------------|
@@ -138,7 +190,7 @@ FastAPI-Books_RestAPI/
 | DELETE | `/{user_uuid}`     | Delete user account      | ✅             | Any (own)     |
 | POST   | `/change-password` | Change password          | ✅             | Any           |
 
-### Admin User Management (`/api/v1.0/users/admin`)
+### Admin User Management (`/api/v1/admin` or `/api/v2/admin`)
 
 | Method | Endpoint                      | Description               | Auth Required | Role Required |
 |--------|-------------------------------|---------------------------|---------------|---------------|
@@ -148,7 +200,7 @@ FastAPI-Books_RestAPI/
 | PATCH  | `/admin/{user_uuid}/role`     | Change user role          | ✅             | Admin         |
 | PATCH  | `/admin/{user_uuid}/activate` | Activate/deactivate user  | ✅             | Admin         |
 
-### Books (`/api/v1.0/books`)
+### Books (`/api/v1/books` or `/api/v2/books`)
 
 | Method | Endpoint       | Description               | Auth Required |
 |--------|----------------|---------------------------|---------------|

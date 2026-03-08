@@ -1,8 +1,8 @@
 import uuid
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 from pydantic import EmailStr
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -26,6 +26,43 @@ class UserService:
         result = await session.execute(statement)
         users = result.scalars().all()
         return list(users)
+
+    @staticmethod
+    async def get_all_users_paginated(
+            session: AsyncSession,
+            page: int = 1,
+            page_size: int = 10,
+            search: Optional[str] = None
+    ) -> Tuple[List[User], int]:
+        """Get all users with pagination and search."""
+        # Base query
+        query = select(User)
+        count_query = select(func.count(User.id))
+
+        # Apply search filter
+        if search:
+            search_filter = or_(
+                User.username.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+                User.first_name.ilike(f"%{search}%"),
+                User.last_name.ilike(f"%{search}%")
+            )
+            query = query.where(search_filter)
+            count_query = count_query.where(search_filter)
+
+        # Get total count
+        total_result = await session.execute(count_query)
+        total = total_result.scalar() or 0
+
+        # Apply sorting and pagination
+        query = query.order_by(desc(User.created_at))
+        offset = (page - 1) * page_size
+        query = query.offset(offset).limit(page_size)
+
+        result = await session.execute(query)
+        users = result.scalars().all()
+
+        return list(users), total
 
     @staticmethod
     async def get_user_by_uuid(user_uuid: uuid.UUID, session: AsyncSession) -> Optional[User]:

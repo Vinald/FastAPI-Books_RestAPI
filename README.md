@@ -1,4 +1,4 @@
-# 📚 FastAPI Books REST API
+# FastAPI Books REST API
 
 A modern, fully-featured RESTful API for book management built with **FastAPI**, **SQLAlchemy**, **PostgreSQL**, and *
 *Redis**. Features JWT authentication with token revocation, user management, and book CRUD operations.
@@ -7,33 +7,33 @@ A modern, fully-featured RESTful API for book management built with **FastAPI**,
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.129.1-green.svg)
 ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-## ✨ Features
+## Features
 
 ### Core Features
 
-- 🔐 **JWT Authentication** with access & refresh tokens
-- 🚪 **Token Revocation** using Redis blacklist
-- 👤 **User Management** (register, login, profile, password change)
-- 📖 **Book CRUD Operations** with user ownership
-- ⭐ **Review System** with ratings and user reviews
-- 📧 **Email Verification** with password reset functionality
-- 🔄 **Async/Await** throughout the application
-- 📊 **Database Migrations** with Alembic
-- 📝 **Auto-generated API Documentation** (Swagger UI & ReDoc)
-- 🛡️ **Security Best Practices** (password hashing, secure tokens)
-- 🔢 **API Versioning** with multiple API versions (V1 & V2)
-- 📄 **Pagination Support** in V2 API with search and filtering
+- **JWT Authentication** with access & refresh tokens
+- **Token Revocation** using Redis blacklist
+- **User Management** (register, login, profile, password change)
+- **Book CRUD Operations** with user ownership
+- **Review System** with ratings and user reviews
+- **Email Verification** with password reset functionality
+- **Async/Await** throughout the application
+- **Database Migrations** with Alembic
+- **Auto-generated API Documentation** (Swagger UI & ReDoc)
+- **Security Best Practices** (password hashing, secure tokens)
+- **API Versioning** with multiple API versions (V1 & V2)
+- **Pagination Support** in V2 API with search and filtering
 
 ### Advanced Features
 
-- 🔒 **OAuth2 Social Login** - Google and GitHub authentication
-- 📁 **File Upload/Download** - Image and document handling with streaming
-- 🔌 **WebSockets** - Real-time communication for notifications and chat
-- ⚡ **Rate Limiting** - Request throttling with Redis backend
-- 🚀 **Background Tasks** - Async task processing with Celery
-- 📊 **GraphQL** - Alternative GraphQL API (Strawberry integration)
+- **OAuth2 Social Login** - Google and GitHub authentication
+- **File Upload/Download** - Image and document handling with streaming
+- **WebSockets** - Real-time communication for notifications and chat
+- **Rate Limiting** - Request throttling with Redis backend
+- **Background Tasks** - Async task processing with Celery
+- **GraphQL** - Alternative GraphQL API (Strawberry integration)
 
-## 🏗️ Project Structure
+## Project Structure
 
 ```
 FastAPI-Books_RestAPI/
@@ -84,7 +84,7 @@ FastAPI-Books_RestAPI/
 └── README.md                   # This file
 ```
 
-## 🚀 Getting Started
+## Getting Started
 
 ### Prerequisites
 
@@ -142,7 +142,7 @@ FastAPI-Books_RestAPI/
     - Swagger UI: http://127.0.0.1:8000/docs
     - ReDoc: http://127.0.0.1:8000/redoc
 
-## 📖 API Endpoints
+## API Endpoints
 
 ### API Versioning
 
@@ -222,7 +222,7 @@ V2 endpoints that return lists include pagination support:
 | PATCH  | `/{book_uuid}` | Update a book             | ✅             |
 | DELETE | `/{book_uuid}` | Delete a book             | ✅             |
 
-## 🛡️ Role-Based Access Control (RBAC)
+## Role-Based Access Control (RBAC)
 
 The API implements three user roles with different permission levels:
 
@@ -264,7 +264,7 @@ The API implements three user roles with different permission levels:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔒 OAuth2 Social Login
+## OAuth2 Social Login
 
 The API supports social login with Google and GitHub.
 
@@ -299,7 +299,7 @@ OAUTH_REDIRECT_BASE_URL=http://localhost:8000
 3. After authentication, user is redirected back to the callback URL
 4. API creates/logs in user and returns JWT tokens
 
-## 📁 File Upload/Download
+## File Upload/Download
 
 The API supports file uploads with streaming downloads.
 
@@ -329,7 +329,7 @@ curl -X POST "http://localhost:8000/api/v1/files/upload" \
 - **Documents**: `.pdf`, `.doc`, `.docx`, `.txt`, `.md`
 - **Max Size**: 10MB per file
 
-## 🔌 WebSockets
+## WebSockets
 
 Real-time communication via WebSocket connections.
 
@@ -369,7 +369,7 @@ ws.onmessage = (event) => {
 {"action": "send_message", "data": {"content": "Hello everyone!"}}
 ```
 
-## ⚡ Rate Limiting
+## Rate Limiting
 
 API endpoints are protected with rate limiting using Redis.
 
@@ -401,7 +401,7 @@ When rate limited, responses include:
 }
 ```
 
-## 🚀 Background Tasks (Celery)
+## Background Tasks (Celery)
 
 The API uses Celery for background task processing.
 
@@ -539,7 +539,7 @@ async def update_book(book_id: int, current_user: User = Depends(get_current_act
     ...
 ```
 
-## 🔒 Security Module (`app/core/security.py`)
+## Security Module (`app/core/security.py`)
 
 The security module provides comprehensive authentication and authorization utilities.
 
@@ -659,7 +659,7 @@ async def delete_book(
 }
 ```
 
-## 🔐 Authentication Flow
+## Authentication Flow
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -688,7 +688,7 @@ async def delete_book(
 └─────────────────────────────────────────────────────────────┘
 ```
 
-## 🔄 Token Revocation with Redis
+## Token Revocation with Redis
 
 This API implements JWT token revocation using Redis as a blacklist store:
 
@@ -702,7 +702,7 @@ blacklist: token:{jti}  # Single token revocation
 blacklist: user:{uuid}  # All devices logout (timestamp-based)
 ```
 
-## 🗃️ Database Models
+## Database Models
 
 ### User
 
@@ -740,7 +740,7 @@ Key → User)
 - updated_at: DateTime
 ```
 
-## 🧪 Running Tests
+## Running Tests
 
 ```bash
 # Install test dependencies
@@ -753,14 +753,14 @@ pytest
 pytest --cov=app tests/
 ```
 
-## 🐳 Docker Support (Coming Soon)
+## Docker Support (Coming Soon)
 
 ```bash
 # Build and run with Docker Compose
 docker-compose up --build
 ```
 
-## 📝 Environment Variables
+## Environment Variables
 
 | Variable                      | Description                  | Default                 |
 |-------------------------------|------------------------------|-------------------------|
@@ -785,7 +785,7 @@ docker-compose up --build
 | `CELERY_BROKER_URL`           | Celery broker URL            | -                       |
 | `CELERY_RESULT_BACKEND`       | Celery result backend        | -                       |
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 - **Framework**: [FastAPI](https://fastapi.tiangolo.com/) - Modern, fast web framework
 - **ORM**: [SQLAlchemy](https://www.sqlalchemy.org/) - SQL toolkit and ORM
@@ -796,18 +796,18 @@ docker-compose up --build
 - **Auth**: [PyJWT](https://pyjwt.readthedocs.io/) - JWT tokens
 - **Password Hashing**: [Passlib](https://passlib.readthedocs.io/) with bcrypt
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-## 👨‍💻 Author
+## Author
 
 **Vinald**
 
 - Email: okiror1vinald@gmail.com
-- Website: http://vinald.me
+- Website: http://vinald.online
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -817,4 +817,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-⭐ **Star this repository if you find it helpful!**
+**Star this repository if you find it helpful!**
